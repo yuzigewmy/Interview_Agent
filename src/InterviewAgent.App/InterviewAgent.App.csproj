@@ -5,7 +5,25 @@
     <ProjectReference Include="..\InterviewAgent.Infrastructure\InterviewAgent.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\README.md"
+          Link="README.md"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\THIRD_PARTY_NOTICES.md"
+          Link="THIRD_PARTY_NOTICES.md"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\docs\*.md"
+          Link="docs\%(Filename)%(Extension)"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\tools\install-bge.ps1"
+          Link="tools\install-bge.ps1"
+          CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <PropertyGroup>
+    <AssemblyName>InterviewAgent</AssemblyName>
+    <Product>Interview Agent</Product>
+    <Version>0.1.0</Version>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>enable</Nullable>

@@ -1,142 +1,39 @@
-# Interview Agent v0.1 实施计划
+# Interview Agent v0.1 实施记录
 
-## 切片 0：仓库与规格
+状态：第一版功能完成，进入发布验收。
 
-交付：
+## 已完成切片
 
-- Git 仓库、`.gitignore`
-- 冻结规格、威胁模型、性能预算
-- .NET 8 解决方案与统一构建设置
+- [x] 仓库、产品规格、威胁模型与性能预算
+- [x] .NET 8 分层解决方案和核心领域模型
+- [x] DOCX 安全解析、知识分块与真实面经导入
+- [x] SQLite FTS5、BGE/字符 n-gram、RRF 混合检索
+- [x] DeepSeek V4 Flash SSE 流式回答
+- [x] 火山引擎 v3 双向流式 ASR 协议
+- [x] WASAPI 系统回放与麦克风采集、16 kHz PCM16 转换
+- [x] 4.5 秒本地兜底、请求取消与总超时
+- [x] DPAPI 加密设置与最小化结构化日志
+- [x] WPF 主界面、设置页、F8 全局热键、置顶和 DOCX 导入
+- [x] BGE-small-zh-v1.5 ONNX 量化推理与哈希降级
+- [x] 真实《面经.docx》、真实 BGE 模型、构建、测试和依赖安全审计
+- [ ] 使用真实 DeepSeek/火山账号做线上联调（需要用户凭据和对应服务已开通）
 
-验证：
+## 发布门禁
 
-- `dotnet --version` 为 8.x
-- `git status` 只包含预期文件
-- 空解决方案可构建
+每次发布都执行：
 
-## 切片 1：核心领域与文本提问
+1. `codegraph sync` 并审查关键调用路径。
+2. `dotnet restore InterviewAgent.sln`。
+3. `dotnet test InterviewAgent.sln -c Release --no-restore`。
+4. `dotnet build InterviewAgent.sln -c Release --no-restore`。
+5. `dotnet list InterviewAgent.sln package --vulnerable --include-transitive`。
+6. 发布 `win-x64` 框架依赖版本，附带文档、工具和校验过的 BGE 模型。
+7. 启动发布版，确认进程存活、真实面经可检索、日志不含正文或密钥。
 
-先写失败测试：
+## 第二版候选项
 
-- 问题规范化
-- 知识块切分
-- RRF 融合
-- DeepSeek SSE 数据行解析
-
-实现：
-
-- Core 接口和领域记录
-- 输入边界校验
-- 演示答案生成器
-
-验收：
-
-- 核心测试由红转绿
-- 不依赖网络即可运行
-
-## 切片 2：DOCX 导入与本地检索
-
-先写失败测试：
-
-- 非 DOCX、超限文件拒绝
-- 标题路径和问答边界正确
-- 参数化 FTS 查询
-- 混合排序稳定
-
-实现：
-
-- OpenXML 文档读取
-- SQLite schema、FTS5、向量 BLOB
-- 本地 n-gram embedding
-- BGE ONNX 可选适配器
-- 原子知识库替换
-
-验收：
-
-- 导入桌面 `面经.docx`
-- 输出块数和耗时
-- 5 个样例查询均返回来源
-
-## 切片 3：流式模型和语音服务
-
-先写失败测试：
-
-- DeepSeek keep-alive、`[DONE]`、畸形行处理
-- 凭据缺失和端点校验
-- ASR 状态机不允许重复启动
-
-实现：
-
-- DeepSeek V4 Flash SSE 客户端
-- 火山引擎大模型流式 ASR 客户端
-- 演示 ASR
-- 超时、取消和稳定错误映射
-
-验收：
-
-- 录制的协议样例通过解析测试
-- 无凭据时明确降级，不崩溃
-
-## 切片 4：音频与五秒编排
-
-先写失败测试：
-
-- 4.5 秒无首 token 时发出本地结果
-- 云端先到时不触发降级
-- 旧请求迟到内容被丢弃
-
-实现：
-
-- WASAPI 系统回放/麦克风捕获
-- 16 kHz 单声道 PCM16 转换
-- 问题级取消和版本号
-- 分阶段 Stopwatch 与结构化日志
-
-验收：
-
-- 可手动开始/停止
-- 单元测试证明 5 秒硬边界策略
-
-## 切片 5：WPF 产品界面
-
-实现：
-
-- 主仪表盘、音源选择、转写编辑、流式回答、来源卡片
-- 设置面板、DPAPI 密钥存储
-- DOCX 导入
-- F8 全局快捷键、置顶开关
-- 合规提示、空状态、错误恢复
-
-验收：
-
-- 100% 和 150% 缩放可用
-- 键盘操作、焦点和文字状态完整
-- 窗口关闭后资源正确释放
-
-## 切片 6：真实数据验收与发布
-
-验证：
-
-- Restore / Build / Test / Publish
-- 导入真实面经并执行样例检索
-- 运行演示完整链路
-- 检查日志不含正文和密钥
-- 扫描 Git diff 中的敏感模式
-
-交付：
-
-- `release/InterviewAgent/InterviewAgent.exe`
-- `README.md`
-- `docs/配置说明.md`
-- `docs/测试报告.md`
-
-## 检查点
-
-每个切片遵循：
-
-1. 先写测试并确认预期失败。
-2. 实现最小功能。
-3. 运行相关测试和 Release 构建。
-4. 检查差异与密钥模式。
-5. 创建单一职责的 Git 提交。
-
+- 自动静音检测和可配置热键。
+- 火山 ASR 热词/上下文配置。
+- 问题类型分类和回答长度快捷档位。
+- RAG 离线评测集、召回率和 MRR 仪表板。
+- 单文件安装器、自动更新和代码签名。

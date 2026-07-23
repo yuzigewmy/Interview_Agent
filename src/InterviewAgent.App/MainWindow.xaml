@@ -4,7 +4,7 @@
         Title="Interview Agent"
         Width="1180"
         Height="790"
-        MinWidth="980"
+        MinWidth="1080"
         MinHeight="680"
         WindowStartupLocation="CenterScreen"
         Loaded="OnLoaded"
@@ -317,15 +317,24 @@
                 BorderThickness="0,1,0,0"
                 Padding="22,10">
             <Grid>
-                <TextBlock Text="隐私：音频默认仅在内存中处理，不落盘；诊断日志不记录问题正文、答案、音频或密钥。"
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="3*" />
+                    <ColumnDefinition Width="2*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="隐私：音频默认仅在内存中处理，不落盘；诊断日志不记录问题正文、答案、音频或密钥。"
                            Foreground="#475467"
-                           FontSize="11" />
-                <TextBlock Text="请在参与者同意并符合当地法律、公司与面试平台政策时使用。"
+                           FontSize="11"
+                           TextWrapping="Wrap"
+                           Margin="0,0,18,0" />
+                <TextBlock Grid.Column="1"
+                           Text="请在参与者同意并符合当地法律、公司与面试平台政策时使用。"
                            Foreground="#667085"
                            FontSize="11"
+                           TextWrapping="Wrap"
+                           TextAlignment="Right"
                            HorizontalAlignment="Right" />
             </Grid>
         </Border>
     </Grid>
 </Window>
-

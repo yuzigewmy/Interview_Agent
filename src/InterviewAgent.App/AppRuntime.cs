@@ -31,7 +31,7 @@ public sealed class AppRuntime : IAsyncDisposable
         SettingsStore = new DpapiSettingsStore(
             Path.Combine(RootDirectory, "secrets.dat"));
         _embeddingProvider = LocalEmbeddingProviderFactory.Create(
-            Path.Combine(RootDirectory, "models", "bge-small-zh-v1.5"));
+            ResolveBgeModelDirectory(RootDirectory));
         EmbeddingProviderName = _embeddingProvider.Name;
         KnowledgeRepository = new SqliteKnowledgeRepository(
             knowledgeDatabasePath,
@@ -112,4 +112,28 @@ public sealed class AppRuntime : IAsyncDisposable
         _httpClient.Dispose();
         await ValueTask.CompletedTask;
     }
+
+    private static string ResolveBgeModelDirectory(string rootDirectory)
+    {
+        var userModelDirectory = Path.Combine(
+            rootDirectory,
+            "models",
+            "bge-small-zh-v1.5");
+        if (HasBgeFiles(userModelDirectory))
+        {
+            return userModelDirectory;
+        }
+
+        var bundledModelDirectory = Path.Combine(
+            AppContext.BaseDirectory,
+            "models",
+            "bge-small-zh-v1.5");
+        return HasBgeFiles(bundledModelDirectory)
+            ? bundledModelDirectory
+            : userModelDirectory;
+    }
+
+    private static bool HasBgeFiles(string directory) =>
+        File.Exists(Path.Combine(directory, "model.onnx")) &&
+        File.Exists(Path.Combine(directory, "vocab.txt"));
 }
