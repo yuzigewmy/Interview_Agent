@@ -1,0 +1,35 @@
+# Build output
+bin/
+obj/
+artifacts/
+release/
+TestResults/
+*.user
+*.suo
+.vs/
+.idea/
+
+# Local tooling and indexes
+.codegraph/
+.tools/
+
+# Secrets and local runtime data
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets.dat
+appsettings.local.json
+*.db
+*.db-shm
+*.db-wal
+logs/
+models/
+
+# Packages and generated archives
+packages/
+*.nupkg
+*.snupkg
+*.zip
+
