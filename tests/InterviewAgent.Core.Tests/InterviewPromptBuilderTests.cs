@@ -26,8 +26,71 @@ public sealed class InterviewPromptBuilderTests
         Assert.Contains("候选人", prompt.System, StringComparison.Ordinal);
         Assert.Contains("第一人称", prompt.System, StringComparison.Ordinal);
         Assert.Contains("不可信证据", prompt.System, StringComparison.Ordinal);
+        Assert.Contains("不得将原始转写视为绝对准确", prompt.System, StringComparison.Ordinal);
+        Assert.Contains("只能采用候选列表中且有知识库证据支持", prompt.System, StringComparison.Ordinal);
+        Assert.Contains("不得凭空创造新的技术术语", prompt.System, StringComparison.Ordinal);
+        Assert.Contains("我理解您问的可能是", prompt.System, StringComparison.Ordinal);
+        Assert.Contains("低置信度时不要输出确定性答案", prompt.System, StringComparison.Ordinal);
         Assert.Contains("请解释一下 volatile", prompt.User, StringComparison.Ordinal);
+        Assert.Contains("原始转写", prompt.User, StringComparison.Ordinal);
+        Assert.Contains("候选纠正问题", prompt.User, StringComparison.Ordinal);
+        Assert.Contains("纠错置信度", prompt.User, StringComparison.Ordinal);
         Assert.Contains("面经.docx", prompt.User, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Build_PairsCandidatesWithEvidenceAndCalculatesHighConfidence()
+    {
+        var request = new AnswerRequest(
+            "circle 注入的原理是什么？",
+            new[]
+            {
+                new KnowledgeHit(
+                    "id-1",
+                    "Web 安全 · SQL 注入原理",
+                    "SQL 注入是把恶意 SQL 片段带入数据库查询。",
+                    "面经.docx",
+                    0.065),
+                new KnowledgeHit(
+                    "id-2",
+                    "Web 安全 · 命令注入",
+                    "命令注入会把不可信输入带入系统命令。",
+                    "面经.docx",
+                    0.02),
+            });
+
+        var prompt = InterviewPromptBuilder.Build(request);
+
+        Assert.Contains("候选 1：Web 安全 · SQL 注入原理", prompt.User, StringComparison.Ordinal);
+        Assert.Contains("对应证据 1", prompt.User, StringComparison.Ordinal);
+        Assert.Contains("候选 2：Web 安全 · 命令注入", prompt.User, StringComparison.Ordinal);
+        Assert.Contains("纠错置信度：高", prompt.User, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Build_DowngradesConfidenceWhenCandidatesAreClose()
+    {
+        var request = new AnswerRequest(
+            "内存卡是怎么实现的？",
+            new[]
+            {
+                new KnowledgeHit(
+                    "id-1",
+                    "Java 安全 · 内存马",
+                    "内存马将恶意组件动态注册到内存中。",
+                    "面经.docx",
+                    0.04),
+                new KnowledgeHit(
+                    "id-2",
+                    "主机安全 · 内存取证",
+                    "内存取证用于分析进程与内存对象。",
+                    "面经.docx",
+                    0.039),
+            });
+
+        var prompt = InterviewPromptBuilder.Build(request);
+
+        Assert.Contains("纠错置信度：低", prompt.User, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -49,4 +112,3 @@ public sealed class InterviewPromptBuilderTests
         Assert.InRange(prompt.User.Length, 1, 7_000);
     }
 }
-
