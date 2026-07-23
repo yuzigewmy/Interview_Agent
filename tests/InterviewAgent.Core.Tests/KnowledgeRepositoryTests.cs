@@ -65,6 +65,41 @@ public sealed class KnowledgeRepositoryTests : IDisposable
         Assert.Null(exception);
     }
 
+    [Fact]
+    public async Task SearchAsync_WithDifferentVectorDimensions_StillUsesLexicalRanking()
+    {
+        Directory.CreateDirectory(_temporaryDirectory);
+        var databasePath = Path.Combine(_temporaryDirectory, "changed-provider.db");
+        var original = new SqliteKnowledgeRepository(
+            databasePath,
+            new DocxParagraphReader(),
+            new LocalHashEmbeddingProvider(128));
+        await original.ImportDocxAsync(CreateKnowledgeDocument(), CancellationToken.None);
+        var changed = new SqliteKnowledgeRepository(
+            databasePath,
+            new DocxParagraphReader(),
+            new LocalHashEmbeddingProvider(512));
+
+        var hits = await changed.SearchAsync(
+            "事务隔离级别有哪些",
+            1,
+            CancellationToken.None);
+
+        Assert.Single(hits);
+        Assert.Contains("读未提交", hits[0].Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LocalEmbeddingProviderFactory_WithoutModel_UsesHashFallback()
+    {
+        Directory.CreateDirectory(_temporaryDirectory);
+
+        var provider = LocalEmbeddingProviderFactory.Create(
+            Path.Combine(_temporaryDirectory, "missing-model"));
+
+        Assert.IsType<LocalHashEmbeddingProvider>(provider);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_temporaryDirectory))

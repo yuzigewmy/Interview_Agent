@@ -15,6 +15,7 @@ namespace InterviewAgent.App;
 
 public sealed class AppRuntime : IAsyncDisposable
 {
+    private readonly IEmbeddingProvider _embeddingProvider;
     private readonly HttpClient _httpClient;
 
     public AppRuntime()
@@ -29,10 +30,13 @@ public sealed class AppRuntime : IAsyncDisposable
 
         SettingsStore = new DpapiSettingsStore(
             Path.Combine(RootDirectory, "secrets.dat"));
+        _embeddingProvider = LocalEmbeddingProviderFactory.Create(
+            Path.Combine(RootDirectory, "models", "bge-small-zh-v1.5"));
+        EmbeddingProviderName = _embeddingProvider.Name;
         KnowledgeRepository = new SqliteKnowledgeRepository(
             knowledgeDatabasePath,
             new DocxParagraphReader(),
-            new LocalHashEmbeddingProvider(384));
+            _embeddingProvider);
         AudioCapture = new WasapiAudioCaptureService();
         Telemetry = new JsonlAppTelemetry(Path.Combine(RootDirectory, "logs"));
         _httpClient = new HttpClient
@@ -44,6 +48,8 @@ public sealed class AppRuntime : IAsyncDisposable
     public string RootDirectory { get; }
 
     public bool KnowledgeDatabaseExistedAtStartup { get; }
+
+    public string EmbeddingProviderName { get; }
 
     public ISettingsStore SettingsStore { get; }
 
@@ -96,6 +102,11 @@ public sealed class AppRuntime : IAsyncDisposable
         if (Telemetry is IDisposable disposableTelemetry)
         {
             disposableTelemetry.Dispose();
+        }
+
+        if (_embeddingProvider is IDisposable disposableEmbeddingProvider)
+        {
+            disposableEmbeddingProvider.Dispose();
         }
 
         _httpClient.Dispose();

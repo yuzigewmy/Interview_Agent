@@ -190,7 +190,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
         else
         {
-            KnowledgeStatus = "本地知识库已就绪";
+            KnowledgeStatus =
+                $"本地知识库已就绪 · {_runtime.EmbeddingProviderName}";
         }
 
         StatusText = Settings.DemoMode

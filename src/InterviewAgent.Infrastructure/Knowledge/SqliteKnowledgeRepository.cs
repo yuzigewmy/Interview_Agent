@@ -134,6 +134,7 @@ public sealed class SqliteKnowledgeRepository : IKnowledgeRepository
                 row.Id,
                 Score = Cosine(queryVector, row.Embedding),
             })
+            .Where(item => double.IsFinite(item.Score))
             .OrderByDescending(item => item.Score)
             .ThenBy(item => item.Id, StringComparer.Ordinal)
             .Take(CandidateLimit)
