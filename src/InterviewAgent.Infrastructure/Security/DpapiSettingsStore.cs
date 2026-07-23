@@ -27,23 +27,30 @@ public sealed class DpapiSettingsStore : ISettingsStore
             return AppSettings.Default;
         }
 
+        byte[]? plaintext = null;
         try
         {
             var encrypted = await File.ReadAllBytesAsync(_path, cancellationToken);
-            var plaintext = ProtectedData.Unprotect(
+            plaintext = ProtectedData.Unprotect(
                 encrypted,
                 Entropy,
                 DataProtectionScope.CurrentUser);
             var settings = JsonSerializer.Deserialize<AppSettings>(plaintext)
                 ?? throw new InvalidDataException("设置内容为空。");
             settings.Validate();
-            CryptographicOperations.ZeroMemory(plaintext);
             return settings;
         }
         catch (Exception exception)
-            when (exception is CryptographicException or JsonException)
+            when (exception is CryptographicException or JsonException or ArgumentException)
         {
             throw new InvalidDataException("无法读取加密设置，请重新配置云服务凭据。", exception);
+        }
+        finally
+        {
+            if (plaintext is not null)
+            {
+                CryptographicOperations.ZeroMemory(plaintext);
+            }
         }
     }
 
@@ -61,11 +68,19 @@ public sealed class DpapiSettingsStore : ISettingsStore
         }
 
         var plaintext = JsonSerializer.SerializeToUtf8Bytes(settings);
-        var encrypted = ProtectedData.Protect(
-            plaintext,
-            Entropy,
-            DataProtectionScope.CurrentUser);
-        CryptographicOperations.ZeroMemory(plaintext);
+        byte[] encrypted;
+        try
+        {
+            encrypted = ProtectedData.Protect(
+                plaintext,
+                Entropy,
+                DataProtectionScope.CurrentUser);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintext);
+        }
+
         var temporaryPath = $"{_path}.{Guid.NewGuid():N}.tmp";
         try
         {
@@ -84,4 +99,3 @@ public sealed class DpapiSettingsStore : ISettingsStore
         }
     }
 }
-

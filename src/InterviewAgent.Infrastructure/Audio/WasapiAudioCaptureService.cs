@@ -86,7 +86,22 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService
             _pcmProvider = new SampleToWaveProvider16(samples);
             _capture.DataAvailable += OnDataAvailable;
             _capture.RecordingStopped += OnRecordingStopped;
-            _capture.StartRecording();
+            try
+            {
+                _capture.StartRecording();
+            }
+            catch
+            {
+                _capture.DataAvailable -= OnDataAvailable;
+                _capture.RecordingStopped -= OnRecordingStopped;
+                _capture.Dispose();
+                _device.Dispose();
+                _capture = null;
+                _device = null;
+                _bufferedProvider = null;
+                _pcmProvider = null;
+                throw;
+            }
         }
 
         return Task.CompletedTask;
@@ -102,20 +117,31 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService
             _capture = null;
         }
 
-        if (capture is not null)
+        try
         {
-            capture.DataAvailable -= OnDataAvailable;
-            capture.RecordingStopped -= OnRecordingStopped;
-            capture.StopRecording();
-            capture.Dispose();
+            if (capture is not null)
+            {
+                capture.DataAvailable -= OnDataAvailable;
+                capture.RecordingStopped -= OnRecordingStopped;
+                try
+                {
+                    capture.StopRecording();
+                }
+                finally
+                {
+                    capture.Dispose();
+                }
+            }
         }
-
-        lock (_gate)
+        finally
         {
-            _device?.Dispose();
-            _device = null;
-            _bufferedProvider = null;
-            _pcmProvider = null;
+            lock (_gate)
+            {
+                _device?.Dispose();
+                _device = null;
+                _bufferedProvider = null;
+                _pcmProvider = null;
+            }
         }
 
         return Task.CompletedTask;
@@ -188,4 +214,3 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService
         }
     }
 }
-

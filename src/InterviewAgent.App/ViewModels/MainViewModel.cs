@@ -200,6 +200,11 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
     public async Task ToggleCaptureAsync()
     {
+        if (IsBusy)
+        {
+            return;
+        }
+
         if (IsCapturing)
         {
             await StopCaptureAsync();
@@ -371,17 +376,28 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         try
         {
             await _runtime.AudioCapture.StopAsync(CancellationToken.None);
-            if (_transcriber is not null)
+            _audioChannel?.Writer.TryComplete();
+            if (_audioPump is not null)
             {
-                await _transcriber.DisposeAsync();
+                try
+                {
+                    await _audioPump;
+                }
+                catch (OperationCanceledException)
+                {
+                }
             }
+
+            await CleanupCaptureAsync();
         }
         catch
         {
         }
-
-        _lifetimeCancellation.Dispose();
-        await _runtime.DisposeAsync();
+        finally
+        {
+            _lifetimeCancellation.Dispose();
+            await _runtime.DisposeAsync();
+        }
     }
 
     private async Task StartCaptureAsync()
@@ -487,8 +503,14 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         {
             _transcriber.TranscriptUpdated -= OnTranscriptUpdated;
             _transcriber.TranscriptionFailed -= OnTranscriptionFailed;
-            await _transcriber.DisposeAsync();
-            _transcriber = null;
+            try
+            {
+                await _transcriber.DisposeAsync();
+            }
+            finally
+            {
+                _transcriber = null;
+            }
         }
 
         _audioChannel = null;

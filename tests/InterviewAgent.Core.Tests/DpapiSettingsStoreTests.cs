@@ -42,6 +42,19 @@ public sealed class DpapiSettingsStoreTests : IDisposable
         Assert.Equal("volc.seedasr.sauc.duration", loaded.VolcanoResourceId);
     }
 
+    [Fact]
+    public async Task LoadAsync_WithCorruptCiphertext_ReturnsSafeError()
+    {
+        var store = new DpapiSettingsStore(_path);
+        await File.WriteAllBytesAsync(_path, [0x01, 0x02, 0x03, 0x04]);
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(
+            () => store.LoadAsync(CancellationToken.None));
+
+        Assert.DoesNotContain("0x", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("无法读取加密设置", exception.Message, StringComparison.Ordinal);
+    }
+
     public void Dispose()
     {
         if (File.Exists(_path))
