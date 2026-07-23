@@ -21,7 +21,7 @@
 发布版入口：
 
 ```text
-release\InterviewAgent\InterviewAgent.exe
+release\InterviewAgent-win-x64\InterviewAgent.exe
 ```
 
 1. 启动应用。首次运行时，如果桌面存在 `面经.docx`，会自动建立本地知识库。
