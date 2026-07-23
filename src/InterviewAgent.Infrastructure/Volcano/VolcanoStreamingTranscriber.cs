@@ -54,33 +54,7 @@ public sealed class VolcanoStreamingTranscriber : IStreamingTranscriber
             connectCancellation.CancelAfter(TimeSpan.FromSeconds(6));
             await socket.ConnectAsync(VolcanoAsrOptions.Endpoint, connectCancellation.Token);
 
-            var request = JsonSerializer.Serialize(new
-            {
-                user = new
-                {
-                    uid = string.IsNullOrWhiteSpace(options.AppKey)
-                        ? "interview-agent"
-                        : options.AppKey,
-                },
-                audio = new
-                {
-                    format = "pcm",
-                    codec = "raw",
-                    rate = 16_000,
-                    bits = 16,
-                    channel = 1,
-                },
-                request = new
-                {
-                    model_name = "bigmodel",
-                    enable_nonstream = true,
-                    enable_itn = true,
-                    enable_punc = true,
-                    enable_ddc = true,
-                    show_utterances = true,
-                    end_window_size = 500,
-                },
-            });
+            var request = BuildInitialRequestJson(options);
             await SendFrameAsync(
                 socket,
                 VolcanoAsrProtocol.EncodeFullRequest(request),
@@ -95,6 +69,45 @@ public sealed class VolcanoStreamingTranscriber : IStreamingTranscriber
             await ResetAsync(socket);
             throw;
         }
+    }
+
+    internal static string BuildInitialRequestJson(VolcanoAsrOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        const string boostingTableId =
+            "f09c571c-a6d7-4b95-90a1-fc059be2db0f";
+
+        return JsonSerializer.Serialize(new
+        {
+            user = new
+            {
+                uid = string.IsNullOrWhiteSpace(options.AppKey)
+                    ? "interview-agent"
+                    : options.AppKey,
+            },
+            audio = new
+            {
+                format = "pcm",
+                codec = "raw",
+                rate = 16_000,
+                bits = 16,
+                channel = 1,
+            },
+            request = new
+            {
+                model_name = "bigmodel",
+                enable_nonstream = true,
+                enable_itn = true,
+                enable_punc = true,
+                enable_ddc = true,
+                show_utterances = true,
+                end_window_size = 500,
+                corpus = new
+                {
+                    boosting_table_id = boostingTableId,
+                },
+            },
+        });
     }
 
     public async ValueTask SendAudioAsync(
@@ -352,4 +365,3 @@ public sealed class VolcanoStreamingTranscriber : IStreamingTranscriber
             _ => "火山 ASR 转写失败。",
         };
 }
-
