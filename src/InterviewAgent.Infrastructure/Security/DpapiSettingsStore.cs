@@ -124,6 +124,14 @@ public sealed class DpapiSettingsStore : ISettingsStore
 
         public string? VolcanoResourceId { get; init; }
 
+        public bool? EnableFloatingOverlay { get; init; }
+
+        public double? FloatingOverlayDiameter { get; init; }
+
+        public double? FloatingOverlayLeft { get; init; }
+
+        public double? FloatingOverlayTop { get; init; }
+
         public AppSettings ToAppSettings() =>
             new(
                 DemoMode,
@@ -135,6 +143,14 @@ public sealed class DpapiSettingsStore : ISettingsStore
                 VolcanoApiKey ?? string.Empty,
                 VolcanoAppKey ?? string.Empty,
                 VolcanoAccessKey ?? string.Empty,
-                VolcanoResourceId ?? "volc.seedasr.sauc.duration");
+                VolcanoResourceId ?? "volc.seedasr.sauc.duration")
+            {
+                EnableFloatingOverlay = EnableFloatingOverlay ?? false,
+                FloatingOverlayDiameter =
+                    FloatingOverlayDiameter ??
+                    AppSettings.DefaultFloatingOverlayDiameter,
+                FloatingOverlayLeft = FloatingOverlayLeft,
+                FloatingOverlayTop = FloatingOverlayTop,
+            };
     }
 }

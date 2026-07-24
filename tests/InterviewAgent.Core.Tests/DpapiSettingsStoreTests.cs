@@ -26,7 +26,13 @@ public sealed class DpapiSettingsStoreTests : IDisposable
             VolcanoApiKey: "volcano-secret-value",
             VolcanoAppKey: string.Empty,
             VolcanoAccessKey: string.Empty,
-            VolcanoResourceId: "volc.seedasr.sauc.duration");
+            VolcanoResourceId: "volc.seedasr.sauc.duration")
+        {
+            EnableFloatingOverlay = true,
+            FloatingOverlayDiameter = 104,
+            FloatingOverlayLeft = -740,
+            FloatingOverlayTop = 210,
+        };
 
         await store.SaveAsync(expected, CancellationToken.None);
         var loaded = await store.LoadAsync(CancellationToken.None);
@@ -67,6 +73,10 @@ public sealed class DpapiSettingsStoreTests : IDisposable
         Assert.Equal("https://api.deepseek.com", loaded.ModelBaseUrl);
         Assert.Equal("legacy-deepseek-secret", loaded.ModelApiKey);
         Assert.Equal(600, loaded.ModelMaxTokens);
+        Assert.False(loaded.EnableFloatingOverlay);
+        Assert.Equal(72, loaded.FloatingOverlayDiameter);
+        Assert.Null(loaded.FloatingOverlayLeft);
+        Assert.Null(loaded.FloatingOverlayTop);
     }
 
     [Fact]
@@ -80,6 +90,8 @@ public sealed class DpapiSettingsStoreTests : IDisposable
         Assert.Equal("DeepSeek", loaded.ModelProvider);
         Assert.Equal("deepseek-v4-flash", loaded.ModelName);
         Assert.Equal("volc.seedasr.sauc.duration", loaded.VolcanoResourceId);
+        Assert.False(loaded.EnableFloatingOverlay);
+        Assert.Equal(72, loaded.FloatingOverlayDiameter);
     }
 
     [Fact]

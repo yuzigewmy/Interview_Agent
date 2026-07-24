@@ -18,6 +18,16 @@ public sealed record AppSettings(
     public const string DefaultModelName = "deepseek-v4-flash";
     public const string DefaultModelBaseUrl = "https://api.deepseek.com";
     public const int DefaultModelMaxTokens = 600;
+    public const double DefaultFloatingOverlayDiameter = 72;
+
+    public bool EnableFloatingOverlay { get; init; }
+
+    public double FloatingOverlayDiameter { get; init; } =
+        DefaultFloatingOverlayDiameter;
+
+    public double? FloatingOverlayLeft { get; init; }
+
+    public double? FloatingOverlayTop { get; init; }
 
     public static AppSettings Default { get; } = new(
         DemoMode: true,
@@ -82,6 +92,16 @@ public sealed record AppSettings(
         ValidateSecret(VolcanoApiKey, nameof(VolcanoApiKey));
         ValidateSecret(VolcanoAppKey, nameof(VolcanoAppKey));
         ValidateSecret(VolcanoAccessKey, nameof(VolcanoAccessKey));
+        if (!double.IsFinite(FloatingOverlayDiameter) ||
+            FloatingOverlayDiameter is < 56 or > 128)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(FloatingOverlayDiameter),
+                "悬浮球大小必须在 56 到 128 之间。");
+        }
+
+        ValidateCoordinate(FloatingOverlayLeft, nameof(FloatingOverlayLeft));
+        ValidateCoordinate(FloatingOverlayTop, nameof(FloatingOverlayTop));
         if (string.IsNullOrWhiteSpace(VolcanoResourceId) ||
             VolcanoResourceId.Length > 128 ||
             !VolcanoResourceId.StartsWith("volc.", StringComparison.Ordinal))
@@ -96,6 +116,16 @@ public sealed record AppSettings(
         if (value.Length > 512)
         {
             throw new ArgumentOutOfRangeException(parameterName, "凭据长度超过上限。");
+        }
+    }
+
+    private static void ValidateCoordinate(double? value, string parameterName)
+    {
+        if (value.HasValue && !double.IsFinite(value.Value))
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                "悬浮球位置必须是有限数值。");
         }
     }
 }
