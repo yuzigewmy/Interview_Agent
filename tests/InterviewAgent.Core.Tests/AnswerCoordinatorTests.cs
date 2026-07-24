@@ -134,6 +134,36 @@ public sealed class AnswerCoordinatorTests
         Assert.Equal("我先回答 SQL 注入的核心原理。", turns[1].Answer);
     }
 
+    [Fact]
+    public async Task StreamAsync_LimitsUntrustedModelOutput()
+    {
+        var session = new InMemoryInterviewSession();
+        var coordinator = new AnswerCoordinator(
+            new FakeRepository(),
+            () => new OversizedGenerator(),
+            fallbackDelay: TimeSpan.FromMilliseconds(150),
+            totalTimeout: TimeSpan.FromSeconds(2),
+            interviewSession: session);
+        var cloudOutput = new System.Text.StringBuilder();
+
+        await foreach (var update in coordinator.StreamAsync(
+                           "请解释一下输出限制。",
+                           CancellationToken.None))
+        {
+            if (update.Kind == AnswerUpdateKind.CloudDelta)
+            {
+                cloudOutput.Append(update.Text);
+            }
+        }
+
+        Assert.Equal(
+            InMemoryInterviewSession.MaximumAnswerCharacters,
+            cloudOutput.Length);
+        Assert.Equal(
+            InMemoryInterviewSession.MaximumAnswerCharacters,
+            Assert.Single(session.Snapshot()).Answer.Length);
+    }
+
     private sealed class FakeRepository : IKnowledgeRepository
     {
         public Task<ImportResult> ImportDocxAsync(
@@ -177,6 +207,20 @@ public sealed class AnswerCoordinatorTests
             await Task.Yield();
             cancellationToken.ThrowIfCancellationRequested();
             yield return new AnswerDelta("我会先解释它的内存语义。");
+        }
+    }
+
+    private sealed class OversizedGenerator : IAnswerGenerator
+    {
+        public async IAsyncEnumerable<AnswerDelta> StreamAsync(
+            AnswerRequest request,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.Yield();
+            yield return new AnswerDelta(
+                new string(
+                    '答',
+                    InMemoryInterviewSession.MaximumAnswerCharacters + 1_000));
         }
     }
 

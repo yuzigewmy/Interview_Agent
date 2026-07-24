@@ -180,15 +180,31 @@ public sealed class AnswerCoordinator
                             fallbackCancellation.Cancel();
                         }
 
-                        cloudAnswer.Append(delta.Text);
+                        var remaining =
+                            InMemoryInterviewSession.MaximumAnswerCharacters -
+                            cloudAnswer.Length;
+                        if (remaining <= 0)
+                        {
+                            break;
+                        }
+
+                        var boundedText = delta.Text.Length <= remaining
+                            ? delta.Text
+                            : delta.Text[..remaining];
+                        cloudAnswer.Append(boundedText);
                         await writer.WriteAsync(
                             new AnswerUpdate(
                                 questionId,
                                 AnswerUpdateKind.CloudDelta,
-                                delta.Text,
+                                boundedText,
                                 evidence,
                                 stopwatch.Elapsed),
                             cancellationToken);
+                        if (cloudAnswer.Length >=
+                            InMemoryInterviewSession.MaximumAnswerCharacters)
+                        {
+                            break;
+                        }
                     }
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

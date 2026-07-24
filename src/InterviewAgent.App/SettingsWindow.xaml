@@ -80,7 +80,7 @@
                                  Margin="0,7,0,5"
                                  MaxLength="2048"
                                  ToolTip="可填写 API 根地址，或完整的 /chat/completions 地址" />
-                        <TextBlock Text="远程地址必须使用 HTTPS；本机 Ollama / LM Studio 可使用 localhost HTTP。"
+                        <TextBlock Text="远程地址必须使用 HTTPS；本机 Ollama / LM Studio 可使用 localhost HTTP。更换 Base URL 时，密钥框留空会清除旧模型密钥。"
                                    Foreground="{StaticResource MutedBrush}"
                                    TextWrapping="Wrap"
                                    FontSize="11"

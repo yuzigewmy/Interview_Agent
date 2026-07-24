@@ -49,9 +49,11 @@ public partial class SettingsWindow : Window
                 ModelProvider: ProviderTextBox.Text.Trim(),
                 ModelName: ModelNameTextBox.Text.Trim(),
                 ModelBaseUrl: ModelBaseUrlTextBox.Text.Trim(),
-                ModelApiKey: ResolveSecret(
+                ModelApiKey: ModelCredentialPolicy.Resolve(
                     ModelApiKeyPasswordBox.Password,
                     _current.ModelApiKey,
+                    _current.ModelBaseUrl,
+                    ModelBaseUrlTextBox.Text.Trim(),
                     clear),
                 ModelMaxTokens: modelMaxTokens,
                 VolcanoApiKey: ResolveSecret(
