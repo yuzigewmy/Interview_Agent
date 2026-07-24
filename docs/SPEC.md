@@ -12,7 +12,7 @@
 
 1. 无云服务凭据时，应用仍能启动、导入面经、文本提问并演示完整回答链路。
 2. 配置火山引擎和 DeepSeek 凭据后，可接入实时转写与流式回答。
-3. 从“提交最终问题”开始，4.5 秒触发本地知识库降级，保证 5 秒内界面出现有意义的文本。
+3. 从“提交最终问题”开始，4.0 秒触发本地知识库降级，给 UI 调度保留余量并保证 5 秒内出现有意义的文本。
 4. 模型输出采用面试者语气；优先使用知识库证据，并显示来源。
 5. 音频默认不落盘；密钥不进入源码、日志或明文配置。
 
@@ -63,7 +63,7 @@ WPF UI
   ├─ Question Coordinator
   │    ├─ Local Retriever (SQLite FTS5 + embedding)
   │    ├─ DeepSeek Streaming Generator
-  │    └─ 4.5 s Local Fallback
+  │    └─ 4.0 s Local Fallback
   ├─ Knowledge Import (DOCX)
   ├─ Encrypted Settings (DPAPI)
   └─ Structured Diagnostics (redacted JSONL)
@@ -154,7 +154,7 @@ public interface IAnswerGenerator
 | 本地降级触发 | 4,500 ms |
 | 界面出现首个有意义文本 | 必须 <= 5,000 ms |
 
-若 DeepSeek 先返回，直接流式显示；若 4.5 秒仍无首 token，则先显示最高置信知识块的精简答案，并在云端到达后平滑替换/续写。取消旧问题后，任何迟到响应不得覆盖新问题。
+若模型服务先返回，直接流式显示；若 4.0 秒仍无首 token，则先显示最高置信知识块的精简答案，并在云端到达后平滑替换/续写。取消旧问题后，任何迟到响应不得覆盖新问题。
 
 ## 10. 威胁模型
 
@@ -223,7 +223,7 @@ dotnet publish src/InterviewAgent.App/InterviewAgent.App.csproj `
 
 - 所有自动化测试通过，Release 构建无错误。
 - 真实 `面经.docx` 成功导入，记录块数量并能检索至少 5 个样例问题。
-- 演示模式完整链路可用；4.5 秒降级逻辑有确定性测试。
+- 演示模式完整链路可用；4.0 秒降级逻辑及模型同步阻塞场景有确定性测试。
 - 音频设备可枚举，系统音频/麦克风可手动开关。
 - OpenAI 兼容 SSE 解析、火山引擎配置校验和错误处理有测试。
 - 发布目录包含 `InterviewAgent.exe`、README 和配置说明。

@@ -1,4 +1,4 @@
-# Interview Agent v0.2
+# Interview Agent v0.2.1
 
 面向 Windows 在线面试场景的本地桌面辅助工具。可手动控制系统音频或麦克风采集，实时转写面试官问题，优先检索本地面经，再由用户配置的 OpenAI 兼容模型以候选人口吻流式组织回答。
 
@@ -11,7 +11,7 @@
 - 火山引擎大模型流式语音识别，支持新 API Key 和旧 AppKey/AccessKey 两种凭据。
 - 《面经.docx》本地解析、分块、SQLite FTS5、BGE-small-zh-v1.5 语义向量与 RRF 混合排序。
 - 模型提供商、Model Name、Base URL、API Key 和最大输出 Token 均可配置，支持 DeepSeek、通义千问、Moonshot、智谱、OpenAI、Ollama、LM Studio 等兼容服务。
-- 4.5 秒首字兜底：云端尚未输出时，先展示命中的本地面经内容。
+- 4.0 秒首字兜底：云端尚未输出时，先展示命中的本地面经内容。
 - 最近 6 轮问答作为内存短期上下文，支持面试官围绕上一题继续追问；程序退出自动清除。
 - 自动记录本次面试的完整问题与回答，一键导出为 `<首道面试题>_<时间戳>.docx`。
 - 固定候选人第一人称提示词，并把知识库内容按“不可信资料”处理，降低提示词注入风险。
@@ -23,7 +23,7 @@
 发布版入口：
 
 ```text
-release\InterviewAgent-win-x64-v0.2\InterviewAgent.exe
+release\InterviewAgent-win-x64-v0.2.1\InterviewAgent.exe
 ```
 
 1. 启动应用。首次运行时，如果桌面存在 `面经.docx`，会自动建立本地知识库。
