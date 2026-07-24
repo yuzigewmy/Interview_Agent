@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using InterviewAgent.Core.Abstractions;
 using InterviewAgent.Core.Answers;
+using InterviewAgent.Core.Corrections;
 using InterviewAgent.Core.Knowledge;
 
 namespace InterviewAgent.Core.Orchestration;
@@ -13,13 +14,15 @@ public sealed class AnswerCoordinator
     private readonly Func<IAnswerGenerator> _generatorFactory;
     private readonly TimeSpan _fallbackDelay;
     private readonly TimeSpan _totalTimeout;
+    private readonly IDomainQuestionCorrector? _questionCorrector;
     private CancellationTokenSource? _activeRequest;
 
     public AnswerCoordinator(
         IKnowledgeRepository knowledgeRepository,
         Func<IAnswerGenerator> generatorFactory,
         TimeSpan? fallbackDelay = null,
-        TimeSpan? totalTimeout = null)
+        TimeSpan? totalTimeout = null,
+        IDomainQuestionCorrector? questionCorrector = null)
     {
         _knowledgeRepository = knowledgeRepository ??
             throw new ArgumentNullException(nameof(knowledgeRepository));
@@ -27,6 +30,7 @@ public sealed class AnswerCoordinator
             throw new ArgumentNullException(nameof(generatorFactory));
         _fallbackDelay = fallbackDelay ?? TimeSpan.FromMilliseconds(4_500);
         _totalTimeout = totalTimeout ?? TimeSpan.FromSeconds(30);
+        _questionCorrector = questionCorrector;
         if (_fallbackDelay <= TimeSpan.Zero || _totalTimeout <= _fallbackDelay)
         {
             throw new ArgumentOutOfRangeException(
@@ -93,8 +97,14 @@ public sealed class AnswerCoordinator
         var stopwatch = Stopwatch.StartNew();
         try
         {
+            var correction = _questionCorrector?.Correct(question) ??
+                new DomainCorrectionResult(
+                    question,
+                    question,
+                    CorrectionConfidence.High,
+                    CorrectionSource.Original);
             var evidence = await _knowledgeRepository.SearchAsync(
-                question,
+                correction.CandidateQuestion,
                 4,
                 cancellationToken);
             await writer.WriteAsync(
@@ -128,7 +138,7 @@ public sealed class AnswerCoordinator
                 {
                     var generator = _generatorFactory();
                     await foreach (var delta in generator.StreamAsync(
-                                       new AnswerRequest(question, evidence),
+                                       new AnswerRequest(question, evidence, correction),
                                        cancellationToken))
                     {
                         if (string.IsNullOrEmpty(delta.Text))
@@ -194,7 +204,7 @@ public sealed class AnswerCoordinator
                     new AnswerUpdate(
                         questionId,
                         AnswerUpdateKind.LocalFallback,
-                        BuildFallback(question, evidence),
+                        BuildFallback(correction.CandidateQuestion, evidence),
                         evidence,
                         stopwatch.Elapsed),
                     cancellationToken);
@@ -230,4 +240,3 @@ public sealed class AnswerCoordinator
         return $"我先直接回答核心结论：{content}";
     }
 }
-

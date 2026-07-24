@@ -1,5 +1,6 @@
 using System.Text;
 using InterviewAgent.Core.Answers;
+using InterviewAgent.Core.Corrections;
 using InterviewAgent.Core.Knowledge;
 
 namespace InterviewAgent.Infrastructure.Prompts;
@@ -40,25 +41,34 @@ public static class InterviewPromptBuilder
         ArgumentOutOfRangeException.ThrowIfLessThan(maxEvidenceCharacters, 1_000);
 
         var candidates = new StringBuilder();
-        var candidateNumber = 0;
-        foreach (var hit in request.Evidence)
+        if (request.Correction is not null)
         {
-            candidateNumber++;
-            var header =
-                $"\n候选 {candidateNumber}：{hit.Title.Trim()}\n" +
-                $"对应证据 {candidateNumber}：[来源：{hit.SourceFileName}]\n";
-            if (candidates.Length + header.Length >= maxEvidenceCharacters)
+            AppendCorrectionCandidate(
+                candidates,
+                request.Correction,
+                request.Evidence,
+                maxEvidenceCharacters);
+        }
+        else
+        {
+            var candidateNumber = 0;
+            foreach (var hit in request.Evidence)
             {
-                break;
-            }
+                candidateNumber++;
+                var header =
+                    $"\n候选 {candidateNumber}：{hit.Title.Trim()}\n" +
+                    $"对应证据 {candidateNumber}：[来源：{hit.SourceFileName}]\n";
+                if (candidates.Length + header.Length >= maxEvidenceCharacters)
+                {
+                    break;
+                }
 
-            candidates.Append(header);
-            var remaining = maxEvidenceCharacters - candidates.Length;
-            candidates.Append(
-                hit.Content.AsSpan(0, Math.Min(hit.Content.Length, remaining)));
-            if (candidates.Length >= maxEvidenceCharacters)
-            {
-                break;
+                candidates.Append(header);
+                AppendBounded(candidates, hit.Content, maxEvidenceCharacters);
+                if (candidates.Length >= maxEvidenceCharacters)
+                {
+                    break;
+                }
             }
         }
 
@@ -67,14 +77,16 @@ public static class InterviewPromptBuilder
             candidates.Append("（没有得到有证据支持的候选问题）");
         }
 
-        var confidence = CalculateCorrectionConfidence(request.Evidence);
+        var confidence = CalculateCorrectionConfidence(
+            request.Evidence,
+            request.Correction);
         var user =
             $"""
             原始转写（不可信）：
             {request.Question.Trim()}
 
             纠错置信度：{confidence}
-            （由本地知识库检索分数及候选间差距计算）
+            （由本地领域纠错结果、知识库检索分数及候选间差距共同计算）
 
             候选纠正问题及每个候选对应的知识库证据（均不可信）：
             {candidates}
@@ -84,20 +96,71 @@ public static class InterviewPromptBuilder
         return new ChatPrompt(SystemPrompt, user);
     }
 
+    private static void AppendCorrectionCandidate(
+        StringBuilder output,
+        DomainCorrectionResult correction,
+        IReadOnlyList<KnowledgeHit> evidence,
+        int maximumCharacters)
+    {
+        var source = correction.Source switch
+        {
+            CorrectionSource.Dictionary => "本地领域词典",
+            CorrectionSource.FuzzyDomainTerm => "本地领域术语模糊匹配",
+            CorrectionSource.DictionaryAndFuzzy => "本地领域词典与术语模糊匹配",
+            _ => "原始转写保留",
+        };
+        var header =
+            $"\n候选 1：{correction.CandidateQuestion.Trim()}\n" +
+            $"候选来源：{source}\n";
+        if (header.Length >= maximumCharacters)
+        {
+            return;
+        }
+
+        output.Append(header);
+        var evidenceNumber = 0;
+        foreach (var hit in evidence)
+        {
+            evidenceNumber++;
+            var evidenceHeader =
+                $"对应证据 1.{evidenceNumber}：" +
+                $"[来源：{hit.SourceFileName}｜{hit.Title.Trim()}]\n";
+            if (output.Length + evidenceHeader.Length >= maximumCharacters)
+            {
+                break;
+            }
+
+            output.Append(evidenceHeader);
+            AppendBounded(output, hit.Content, maximumCharacters);
+            output.AppendLine();
+            if (output.Length >= maximumCharacters)
+            {
+                break;
+            }
+        }
+    }
+
+    private static void AppendBounded(
+        StringBuilder output,
+        string value,
+        int maximumCharacters)
+    {
+        var remaining = maximumCharacters - output.Length;
+        output.Append(value.AsSpan(0, Math.Min(value.Length, remaining)));
+    }
+
     private static string CalculateCorrectionConfidence(
-        IReadOnlyList<KnowledgeHit> evidence)
+        IReadOnlyList<KnowledgeHit> evidence,
+        DomainCorrectionResult? correction)
     {
         var scores = evidence
             .Select(hit => hit.Score)
             .Where(double.IsFinite)
             .OrderByDescending(score => score)
             .ToArray();
-        if (scores.Length == 0 || scores[0] <= 0)
-        {
-            return "低";
-        }
-
-        var level = scores[0] switch
+        var level = scores.Length == 0 || scores[0] <= 0
+            ? 0
+            : scores[0] switch
         {
             >= 0.05 => 2,
             >= 0.03 => 1,
@@ -107,6 +170,18 @@ public static class InterviewPromptBuilder
             scores[1] / scores[0] >= 0.9)
         {
             level = Math.Max(0, level - 1);
+        }
+
+        if (correction is not null &&
+            correction.Source != CorrectionSource.Original)
+        {
+            var localLevel = correction.Confidence switch
+            {
+                CorrectionConfidence.High => 2,
+                CorrectionConfidence.Medium => 1,
+                _ => 0,
+            };
+            level = Math.Min(level, localLevel);
         }
 
         return level switch

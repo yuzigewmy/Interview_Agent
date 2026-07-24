@@ -1,8 +1,10 @@
 using System.IO;
 using System.Net.Http;
 using InterviewAgent.Core.Abstractions;
+using InterviewAgent.Core.Corrections;
 using InterviewAgent.Core.Settings;
 using InterviewAgent.Infrastructure.Audio;
+using InterviewAgent.Infrastructure.Corrections;
 using InterviewAgent.Infrastructure.DeepSeek;
 using InterviewAgent.Infrastructure.Documents;
 using InterviewAgent.Infrastructure.Embeddings;
@@ -37,6 +39,13 @@ public sealed class AppRuntime : IAsyncDisposable
             knowledgeDatabasePath,
             new DocxParagraphReader(),
             _embeddingProvider);
+        var asrResourceDirectory = Path.Combine(
+            AppContext.BaseDirectory,
+            "resources",
+            "asr");
+        QuestionCorrector = DomainQuestionCorrector.LoadOrEmpty(
+            Path.Combine(asrResourceDirectory, "correct_words.json"),
+            Path.Combine(asrResourceDirectory, "volcano_hotwords.txt"));
         AudioCapture = new WasapiAudioCaptureService();
         Telemetry = new JsonlAppTelemetry(Path.Combine(RootDirectory, "logs"));
         _httpClient = new HttpClient
@@ -54,6 +63,8 @@ public sealed class AppRuntime : IAsyncDisposable
     public ISettingsStore SettingsStore { get; }
 
     public IKnowledgeRepository KnowledgeRepository { get; }
+
+    public IDomainQuestionCorrector QuestionCorrector { get; }
 
     public IAudioCaptureService AudioCapture { get; }
 

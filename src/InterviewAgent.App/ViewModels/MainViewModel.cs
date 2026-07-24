@@ -36,7 +36,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _coordinator = new AnswerCoordinator(
             runtime.KnowledgeRepository,
-            () => runtime.CreateAnswerGenerator(() => Settings));
+            () => runtime.CreateAnswerGenerator(() => Settings),
+            questionCorrector: runtime.QuestionCorrector);
     }
 
     public ObservableCollection<AudioDevice> AudioDevices { get; } = new();

@@ -18,6 +18,14 @@
     <None Include="..\..\tools\install-bge.ps1"
           Link="tools\install-bge.ps1"
           CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\resources\asr\correct_words.json"
+          Link="resources\asr\correct_words.json"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\resources\asr\volcano_hotwords.txt"
+          Link="resources\asr\volcano_hotwords.txt"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>

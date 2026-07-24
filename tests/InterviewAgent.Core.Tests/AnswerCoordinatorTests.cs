@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using InterviewAgent.Core.Abstractions;
 using InterviewAgent.Core.Answers;
+using InterviewAgent.Core.Corrections;
 using InterviewAgent.Core.Knowledge;
 using InterviewAgent.Core.Orchestration;
 
@@ -64,6 +65,36 @@ public sealed class AnswerCoordinatorTests
             update => update.Kind == AnswerUpdateKind.LocalFallback);
     }
 
+    [Fact]
+    public async Task StreamAsync_UsesLocalCorrectionForOneKnowledgeSearch()
+    {
+        var repository = new RecordingRepository();
+        var generator = new CapturingGenerator();
+        var corrector = new StubCorrector(
+            new DomainCorrectionResult(
+                "circle注入是什么？",
+                "SQL注入是什么？",
+                CorrectionConfidence.High,
+                CorrectionSource.Dictionary));
+        var coordinator = new AnswerCoordinator(
+            repository,
+            () => generator,
+            fallbackDelay: TimeSpan.FromMilliseconds(150),
+            totalTimeout: TimeSpan.FromSeconds(2),
+            questionCorrector: corrector);
+
+        await foreach (var _ in coordinator.StreamAsync(
+                           "circle注入是什么？",
+                           CancellationToken.None))
+        {
+        }
+
+        Assert.Equal(new[] { "SQL注入是什么？" }, repository.Queries);
+        Assert.NotNull(generator.Request);
+        Assert.Equal("circle注入是什么？", generator.Request.Question);
+        Assert.Equal("SQL注入是什么？", generator.Request.Correction?.CandidateQuestion);
+    }
+
     private sealed class FakeRepository : IKnowledgeRepository
     {
         public Task<ImportResult> ImportDocxAsync(
@@ -109,5 +140,52 @@ public sealed class AnswerCoordinatorTests
             yield return new AnswerDelta("我会先解释它的内存语义。");
         }
     }
-}
 
+    private sealed class RecordingRepository : IKnowledgeRepository
+    {
+        public List<string> Queries { get; } = new();
+
+        public Task<ImportResult> ImportDocxAsync(
+            string path,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<KnowledgeHit>> SearchAsync(
+            string question,
+            int limit,
+            CancellationToken cancellationToken)
+        {
+            Queries.Add(question);
+            return Task.FromResult<IReadOnlyList<KnowledgeHit>>(
+                new[]
+                {
+                    new KnowledgeHit(
+                        "sql",
+                        "SQL 注入原理",
+                        "SQL 注入是把恶意 SQL 片段带入数据库查询。",
+                        "面经.docx",
+                        0.065),
+                });
+        }
+    }
+
+    private sealed class CapturingGenerator : IAnswerGenerator
+    {
+        public AnswerRequest? Request { get; private set; }
+
+        public async IAsyncEnumerable<AnswerDelta> StreamAsync(
+            AnswerRequest request,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            Request = request;
+            await Task.Yield();
+            yield return new AnswerDelta("我先回答 SQL 注入的核心原理。");
+        }
+    }
+
+    private sealed class StubCorrector(DomainCorrectionResult result)
+        : IDomainQuestionCorrector
+    {
+        public DomainCorrectionResult Correct(string transcript) => result;
+    }
+}

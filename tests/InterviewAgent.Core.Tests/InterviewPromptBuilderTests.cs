@@ -1,4 +1,5 @@
 using InterviewAgent.Core.Answers;
+using InterviewAgent.Core.Corrections;
 using InterviewAgent.Core.Knowledge;
 using InterviewAgent.Infrastructure.Prompts;
 
@@ -91,6 +92,34 @@ public sealed class InterviewPromptBuilderTests
         var prompt = InterviewPromptBuilder.Build(request);
 
         Assert.Contains("纠错置信度：低", prompt.User, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Build_UsesLocalDomainCorrectionAsGroundedCandidate()
+    {
+        var request = new AnswerRequest(
+            "circle注入是什么？",
+            new[]
+            {
+                new KnowledgeHit(
+                    "id-1",
+                    "Web 安全 · SQL 注入",
+                    "SQL 注入会把恶意 SQL 片段带入数据库查询。",
+                    "面经.docx",
+                    0.065),
+            },
+            new DomainCorrectionResult(
+                "circle注入是什么？",
+                "SQL注入是什么？",
+                CorrectionConfidence.High,
+                CorrectionSource.Dictionary));
+
+        var prompt = InterviewPromptBuilder.Build(request);
+
+        Assert.Contains("候选 1：SQL注入是什么？", prompt.User, StringComparison.Ordinal);
+        Assert.Contains("本地领域词典", prompt.User, StringComparison.Ordinal);
+        Assert.Contains("对应证据 1.1", prompt.User, StringComparison.Ordinal);
+        Assert.Contains("纠错置信度：高", prompt.User, StringComparison.Ordinal);
     }
 
     [Fact]
