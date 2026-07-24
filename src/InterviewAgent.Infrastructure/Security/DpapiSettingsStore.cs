@@ -35,8 +35,9 @@ public sealed class DpapiSettingsStore : ISettingsStore
                 encrypted,
                 Entropy,
                 DataProtectionScope.CurrentUser);
-            var settings = JsonSerializer.Deserialize<AppSettings>(plaintext)
+            var persisted = JsonSerializer.Deserialize<PersistedSettings>(plaintext)
                 ?? throw new InvalidDataException("设置内容为空。");
+            var settings = persisted.ToAppSettings();
             settings.Validate();
             return settings;
         }
@@ -97,5 +98,43 @@ public sealed class DpapiSettingsStore : ISettingsStore
                 File.Delete(temporaryPath);
             }
         }
+    }
+
+    private sealed record PersistedSettings
+    {
+        public bool DemoMode { get; init; }
+
+        public string? ModelProvider { get; init; }
+
+        public string? ModelName { get; init; }
+
+        public string? ModelBaseUrl { get; init; }
+
+        public string? ModelApiKey { get; init; }
+
+        public int? ModelMaxTokens { get; init; }
+
+        public string? DeepSeekApiKey { get; init; }
+
+        public string? VolcanoApiKey { get; init; }
+
+        public string? VolcanoAppKey { get; init; }
+
+        public string? VolcanoAccessKey { get; init; }
+
+        public string? VolcanoResourceId { get; init; }
+
+        public AppSettings ToAppSettings() =>
+            new(
+                DemoMode,
+                ModelProvider ?? AppSettings.DefaultModelProvider,
+                ModelName ?? AppSettings.DefaultModelName,
+                ModelBaseUrl ?? AppSettings.DefaultModelBaseUrl,
+                ModelApiKey ?? DeepSeekApiKey ?? string.Empty,
+                ModelMaxTokens ?? AppSettings.DefaultModelMaxTokens,
+                VolcanoApiKey ?? string.Empty,
+                VolcanoAppKey ?? string.Empty,
+                VolcanoAccessKey ?? string.Empty,
+                VolcanoResourceId ?? "volc.seedasr.sauc.duration");
     }
 }
