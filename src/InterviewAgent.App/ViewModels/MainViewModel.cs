@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Channels;
 using System.Windows;
+using System.Windows.Threading;
 using InterviewAgent.Core.Abstractions;
 using InterviewAgent.Core.Audio;
 using InterviewAgent.Core.Knowledge;
@@ -33,6 +34,11 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     private bool _isBusy;
     private bool _fallbackShown;
     private bool _isOverlayTurnVisible;
+    private bool _reportedHasOverlayQuestion;
+    private bool _reportedHasOverlayAnswer;
+    private bool _reportedOverlayConversationVisible;
+    private double _pendingAudioLevel;
+    private int _audioLevelDispatchPending;
     private long _lastAudioLevelUpdateTimestamp;
     private IStreamingTranscriber? _transcriber;
     private Channel<AudioFrame>? _audioChannel;
@@ -748,7 +754,27 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             return;
         }
 
-        _ = dispatcher.InvokeAsync(() => AudioLevel = smoothed);
+        Volatile.Write(ref _pendingAudioLevel, smoothed);
+        if (Interlocked.Exchange(ref _audioLevelDispatchPending, 1) != 0)
+        {
+            return;
+        }
+
+        _ = dispatcher.InvokeAsync(
+            () =>
+            {
+                try
+                {
+                    AudioLevel = IsCapturing
+                        ? Volatile.Read(ref _pendingAudioLevel)
+                        : 0;
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _audioLevelDispatchPending, 0);
+                }
+            },
+            DispatcherPriority.Render);
     }
 
     private void OnTranscriptUpdated(object? sender, TranscriptUpdate update)
@@ -809,14 +835,32 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     {
         RaisePropertyChanged(nameof(OverlayQuestion));
         RaisePropertyChanged(nameof(OverlayAnswer));
-        RaisePropertyChanged(nameof(HasOverlayQuestion));
-        RaisePropertyChanged(nameof(HasOverlayAnswer));
-        RaisePropertyChanged(nameof(IsOverlayConversationVisible));
+        var hasQuestion = HasOverlayQuestion;
+        if (_reportedHasOverlayQuestion != hasQuestion)
+        {
+            _reportedHasOverlayQuestion = hasQuestion;
+            RaisePropertyChanged(nameof(HasOverlayQuestion));
+        }
+
+        var hasAnswer = HasOverlayAnswer;
+        if (_reportedHasOverlayAnswer != hasAnswer)
+        {
+            _reportedHasOverlayAnswer = hasAnswer;
+            RaisePropertyChanged(nameof(HasOverlayAnswer));
+        }
+
+        var isVisible = hasQuestion || hasAnswer;
+        if (_reportedOverlayConversationVisible != isVisible)
+        {
+            _reportedOverlayConversationVisible = isVisible;
+            RaisePropertyChanged(nameof(IsOverlayConversationVisible));
+        }
     }
 
     private void ResetAudioLevel()
     {
         _audioLevelSmoother.Reset();
+        Volatile.Write(ref _pendingAudioLevel, 0);
         _lastAudioLevelUpdateTimestamp = 0;
         AudioLevel = 0;
     }

@@ -8,6 +8,7 @@ namespace InterviewAgent.App;
 public partial class ConversationBubbleWindow : Window
 {
     private readonly MainViewModel _viewModel;
+    private bool _scrollUpdatePending;
 
     public ConversationBubbleWindow(MainViewModel viewModel)
     {
@@ -32,11 +33,24 @@ public partial class ConversationBubbleWindow : Window
             return;
         }
 
+        if (_scrollUpdatePending)
+        {
+            return;
+        }
+
+        _scrollUpdatePending = true;
         _ = Dispatcher.InvokeAsync(
             () =>
             {
-                QuestionScrollViewer.ScrollToEnd();
-                AnswerScrollViewer.ScrollToEnd();
+                try
+                {
+                    QuestionScrollViewer.ScrollToEnd();
+                    AnswerScrollViewer.ScrollToEnd();
+                }
+                finally
+                {
+                    _scrollUpdatePending = false;
+                }
             },
             DispatcherPriority.Loaded);
     }

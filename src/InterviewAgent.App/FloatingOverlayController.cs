@@ -15,6 +15,7 @@ internal sealed class FloatingOverlayController : IAsyncDisposable
     private ConversationBubbleWindow? _bubbleWindow;
     private Task _pendingPlacementSave = Task.CompletedTask;
     private bool _disposed;
+    private bool? _lastConversationVisible;
 
     public FloatingOverlayController(
         MainWindow mainWindow,
@@ -101,6 +102,7 @@ internal sealed class FloatingOverlayController : IAsyncDisposable
         ball.Close();
         _bubbleWindow = null;
         _ballWindow = null;
+        _lastConversationVisible = null;
         await _pendingPlacementSave;
     }
 
@@ -133,7 +135,14 @@ internal sealed class FloatingOverlayController : IAsyncDisposable
             return;
         }
 
-        if (!_viewModel.IsOverlayConversationVisible)
+        var shouldBeVisible = _viewModel.IsOverlayConversationVisible;
+        if (_lastConversationVisible == shouldBeVisible)
+        {
+            return;
+        }
+
+        _lastConversationVisible = shouldBeVisible;
+        if (!shouldBeVisible)
         {
             if (bubble.IsVisible)
             {

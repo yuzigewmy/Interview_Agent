@@ -47,11 +47,20 @@
                                         IsActive="{Binding IsCapturing}"
                                         IsHitTestVisible="False" />
 
-                <Viewbox Width="44%"
-                         Height="44%"
-                         HorizontalAlignment="Center"
-                         VerticalAlignment="Center"
-                         IsHitTestVisible="False">
+                <Grid IsHitTestVisible="False">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="28*" />
+                        <ColumnDefinition Width="44*" />
+                        <ColumnDefinition Width="28*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="28*" />
+                        <RowDefinition Height="44*" />
+                        <RowDefinition Height="28*" />
+                    </Grid.RowDefinitions>
+                <Viewbox Grid.Row="1"
+                         Grid.Column="1"
+                         Stretch="Uniform">
                     <Grid Width="24" Height="24">
                         <Path Style="{StaticResource MicrophoneStroke}"
                               Data="M12,2 C10.34,2 9,3.34 9,5 L9,11 C9,12.66 10.34,14 12,14 C13.66,14 15,12.66 15,11 L15,5 C15,3.34 13.66,2 12,2 Z" />
@@ -75,6 +84,7 @@
                         </Path>
                     </Grid>
                 </Viewbox>
+                </Grid>
             </Grid>
         </Border>
 

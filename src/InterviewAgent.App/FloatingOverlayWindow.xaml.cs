@@ -20,6 +20,7 @@ public partial class FloatingOverlayWindow : Window
     private Point _dragStartCursor;
     private double _dragStartLeft;
     private double _dragStartTop;
+    private bool _ballPointerActive;
     private bool _isDragging;
     private bool _ignoreNextMouseUp;
 
@@ -89,6 +90,7 @@ public partial class FloatingOverlayWindow : Window
         {
             _singleClickTimer.Stop();
             _ignoreNextMouseUp = true;
+            _ballPointerActive = false;
             ReleaseMouseCapture();
             _restoreMainWindow();
             e.Handled = true;
@@ -98,6 +100,7 @@ public partial class FloatingOverlayWindow : Window
         _dragStartCursor = OverlayWindowInterop.GetCursorPosition(this);
         _dragStartLeft = Left;
         _dragStartTop = Top;
+        _ballPointerActive = true;
         _isDragging = false;
         CaptureMouse();
         e.Handled = true;
@@ -105,7 +108,9 @@ public partial class FloatingOverlayWindow : Window
 
     private void OnBallMouseMove(object sender, MouseEventArgs e)
     {
-        if (!IsMouseCaptured || e.LeftButton != MouseButtonState.Pressed)
+        if (!_ballPointerActive ||
+            !IsMouseCaptured ||
+            e.LeftButton != MouseButtonState.Pressed)
         {
             return;
         }
@@ -129,11 +134,12 @@ public partial class FloatingOverlayWindow : Window
 
     private void OnBallMouseUp(object sender, MouseButtonEventArgs e)
     {
-        if (e.ChangedButton != MouseButton.Left || ResizeThumb.IsMouseOver)
+        if (e.ChangedButton != MouseButton.Left || !_ballPointerActive)
         {
             return;
         }
 
+        _ballPointerActive = false;
         if (IsMouseCaptured)
         {
             ReleaseMouseCapture();
