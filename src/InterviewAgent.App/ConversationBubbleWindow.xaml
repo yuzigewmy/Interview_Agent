@@ -1,0 +1,118 @@
+<Window x:Class="InterviewAgent.App.ConversationBubbleWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Interview Agent 对话提示"
+        Width="420"
+        SizeToContent="Height"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="True"
+        Focusable="False"
+        WindowStartupLocation="Manual"
+        SourceInitialized="OnSourceInitialized">
+    <StackPanel Margin="6">
+        <Grid HorizontalAlignment="Right" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="8" />
+            </Grid.ColumnDefinitions>
+            <Border x:Name="QuestionBubble"
+                    MaxWidth="390"
+                    Background="#95EC69"
+                    CornerRadius="12"
+                    Padding="14,10">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasOverlayQuestion}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <ScrollViewer x:Name="QuestionScrollViewer"
+                              MaxHeight="120"
+                              VerticalScrollBarVisibility="Hidden">
+                    <TextBlock Text="{Binding OverlayQuestion}"
+                               Foreground="#111827"
+                               FontFamily="Microsoft YaHei UI, Segoe UI"
+                               FontSize="14"
+                               LineHeight="23"
+                               TextWrapping="Wrap" />
+                </ScrollViewer>
+            </Border>
+            <Path Grid.Column="1"
+                  Data="M0,8 L8,14 L0,19 Z"
+                  Fill="#95EC69"
+                  VerticalAlignment="Bottom"
+                  Margin="0,0,0,8">
+                <Path.Style>
+                    <Style TargetType="Path">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasOverlayQuestion}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Path.Style>
+            </Path>
+        </Grid>
+
+        <Grid HorizontalAlignment="Left">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Path Data="M8,8 L0,14 L8,19 Z"
+                  Fill="White"
+                  VerticalAlignment="Top"
+                  Margin="0,8,0,0">
+                <Path.Style>
+                    <Style TargetType="Path">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasOverlayAnswer}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Path.Style>
+            </Path>
+            <Border x:Name="AnswerBubble"
+                    Grid.Column="1"
+                    MaxWidth="390"
+                    Background="White"
+                    BorderBrush="#E5E7EB"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="14,10">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasOverlayAnswer}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <ScrollViewer x:Name="AnswerScrollViewer"
+                              MaxHeight="280"
+                              VerticalScrollBarVisibility="Hidden">
+                    <TextBlock Text="{Binding OverlayAnswer}"
+                               Foreground="#111827"
+                               FontFamily="Microsoft YaHei UI, Segoe UI"
+                               FontSize="14"
+                               LineHeight="24"
+                               TextWrapping="Wrap" />
+                </ScrollViewer>
+            </Border>
+        </Grid>
+    </StackPanel>
+</Window>
