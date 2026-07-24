@@ -18,16 +18,22 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     private readonly AppRuntime _runtime;
     private readonly AnswerCoordinator _coordinator;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private readonly SemaphoreSlim _settingsSaveGate = new(1, 1);
+    private readonly AudioLevelSmoother _audioLevelSmoother = new();
     private AppSettings _settings = AppSettings.Default;
     private AudioDevice? _selectedAudioDevice;
     private string _transcript = string.Empty;
     private string _answer = string.Empty;
+    private string _overlayErrorText = string.Empty;
     private string _statusText = "正在初始化…";
     private string _knowledgeStatus = "尚未载入";
     private string _timingText = "等待问题";
+    private double _audioLevel;
     private bool _isCapturing;
     private bool _isBusy;
     private bool _fallbackShown;
+    private bool _isOverlayTurnVisible;
+    private long _lastAudioLevelUpdateTimestamp;
     private IStreamingTranscriber? _transcriber;
     private Channel<AudioFrame>? _audioChannel;
     private Task? _audioPump;
@@ -69,13 +75,25 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     public string Transcript
     {
         get => _transcript;
-        set => SetProperty(ref _transcript, value);
+        set
+        {
+            if (SetProperty(ref _transcript, value))
+            {
+                RaiseOverlayProperties();
+            }
+        }
     }
 
     public string Answer
     {
         get => _answer;
-        private set => SetProperty(ref _answer, value);
+        private set
+        {
+            if (SetProperty(ref _answer, value))
+            {
+                RaiseOverlayProperties();
+            }
+        }
     }
 
     public string StatusText
@@ -125,6 +143,42 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     }
 
     public bool IsNotBusy => !IsBusy;
+
+    public double AudioLevel
+    {
+        get => _audioLevel;
+        private set => SetProperty(ref _audioLevel, Math.Clamp(value, 0, 1));
+    }
+
+    public bool IsOverlayTurnVisible
+    {
+        get => _isOverlayTurnVisible;
+        private set
+        {
+            if (SetProperty(ref _isOverlayTurnVisible, value))
+            {
+                RaiseOverlayProperties();
+            }
+        }
+    }
+
+    public string OverlayQuestion => Transcript;
+
+    public string OverlayAnswer =>
+        string.IsNullOrWhiteSpace(Answer)
+            ? _overlayErrorText
+            : Answer;
+
+    public bool HasOverlayQuestion =>
+        IsOverlayTurnVisible &&
+        !string.IsNullOrWhiteSpace(OverlayQuestion);
+
+    public bool HasOverlayAnswer =>
+        IsOverlayTurnVisible &&
+        !string.IsNullOrWhiteSpace(OverlayAnswer);
+
+    public bool IsOverlayConversationVisible =>
+        HasOverlayQuestion || HasOverlayAnswer;
 
     public bool CanRefreshAudioDevices => !IsBusy && !IsCapturing;
 
@@ -218,6 +272,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             return;
         }
 
+        ShowOverlayTurn();
         IsBusy = true;
         Answer = string.Empty;
         Evidence.Clear();
@@ -256,6 +311,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                         break;
 
                     case AnswerUpdateKind.LocalFallback:
+                        ClearOverlayError();
                         Answer = update.Text;
                         _fallbackShown = true;
                         StatusText = "云端首字较慢，已先显示本地面经答案。";
@@ -267,6 +323,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                         break;
 
                     case AnswerUpdateKind.CloudDelta:
+                        ClearOverlayError();
                         if (_fallbackShown)
                         {
                             Answer = string.Empty;
@@ -291,6 +348,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
                     case AnswerUpdateKind.Error:
                         StatusText = update.Text;
+                        SetOverlayError("回答生成失败，请检查模型设置后重试。");
                         Track(
                             "external_call_failed",
                             operationId,
@@ -314,6 +372,11 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         catch (OperationCanceledException)
         {
             StatusText = "已取消上一道问题。";
+        }
+        catch
+        {
+            SetOverlayError("回答生成失败，请检查模型设置后重试。");
+            throw;
         }
         finally
         {
@@ -411,13 +474,59 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     public async Task SaveSettingsAsync(AppSettings settings)
     {
         settings.Validate();
-        await _runtime.SettingsStore.SaveAsync(
-            settings,
-            _lifetimeCancellation.Token);
-        Settings = settings;
-        StatusText = settings.DemoMode
+        await _settingsSaveGate.WaitAsync(_lifetimeCancellation.Token);
+        AppSettings merged;
+        try
+        {
+            merged = settings with
+            {
+                FloatingOverlayDiameter = Settings.FloatingOverlayDiameter,
+                FloatingOverlayLeft = Settings.FloatingOverlayLeft,
+                FloatingOverlayTop = Settings.FloatingOverlayTop,
+            };
+            await _runtime.SettingsStore.SaveAsync(
+                merged,
+                _lifetimeCancellation.Token);
+            Settings = merged;
+        }
+        finally
+        {
+            _settingsSaveGate.Release();
+        }
+
+        StatusText = merged.DemoMode
             ? "设置已加密保存，当前为演示模式。"
             : "设置已加密保存，云服务模式已启用。";
+    }
+
+    public async Task SaveOverlayPlacementAsync(
+        double left,
+        double top,
+        double diameter,
+        CancellationToken cancellationToken = default)
+    {
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            _lifetimeCancellation.Token,
+            cancellationToken);
+        await _settingsSaveGate.WaitAsync(linkedCancellation.Token);
+        try
+        {
+            var updated = Settings with
+            {
+                FloatingOverlayLeft = left,
+                FloatingOverlayTop = top,
+                FloatingOverlayDiameter = diameter,
+            };
+            updated.Validate();
+            await _runtime.SettingsStore.SaveAsync(
+                updated,
+                linkedCancellation.Token);
+            Settings = updated;
+        }
+        finally
+        {
+            _settingsSaveGate.Release();
+        }
     }
 
     public void ReportUiError(string message) => StatusText = message;
@@ -449,6 +558,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         finally
         {
             _runtime.InterviewSession.Clear();
+            _settingsSaveGate.Dispose();
             _lifetimeCancellation.Dispose();
             await _runtime.DisposeAsync();
         }
@@ -495,6 +605,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             return;
         }
 
+        BeginNewOverlayTurn();
         IsBusy = true;
         StatusText = Settings.DemoMode
             ? "正在启动本地音频采集…"
@@ -578,6 +689,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             return;
         }
 
+        ShowOverlayTurn();
         await AskAsync();
     }
 
@@ -602,6 +714,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
         _audioChannel = null;
         _audioPump = null;
+        ResetAudioLevel();
     }
 
     private static async Task PumpAudioAsync(
@@ -615,14 +728,35 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
-    private void OnAudioFrameCaptured(object? sender, AudioFrame frame) =>
+    private void OnAudioFrameCaptured(object? sender, AudioFrame frame)
+    {
         _audioChannel?.Writer.TryWrite(frame);
+
+        var measured = AudioLevelMeter.MeasureNormalized(frame.Pcm16);
+        var smoothed = _audioLevelSmoother.Update(measured);
+        var timestamp = Stopwatch.GetTimestamp();
+        var minimumInterval = Stopwatch.Frequency / 15;
+        if (timestamp - _lastAudioLevelUpdateTimestamp < minimumInterval)
+        {
+            return;
+        }
+
+        _lastAudioLevelUpdateTimestamp = timestamp;
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        _ = dispatcher.InvokeAsync(() => AudioLevel = smoothed);
+    }
 
     private void OnTranscriptUpdated(object? sender, TranscriptUpdate update)
     {
         _ = Application.Current.Dispatcher.InvokeAsync(() =>
         {
             Transcript = update.Text;
+            ShowOverlayTurn();
             StatusText = update.IsFinal
                 ? "已识别一个完整问题片段。"
                 : "正在实时转写面试官问题…";
@@ -633,7 +767,59 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         _ = Application.Current.Dispatcher.InvokeAsync(() => StatusText = message);
 
     private void OnAudioCaptureFailed(object? sender, string message) =>
-        _ = Application.Current.Dispatcher.InvokeAsync(() => StatusText = message);
+        _ = Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            ResetAudioLevel();
+            StatusText = message;
+        });
+
+    private void BeginNewOverlayTurn()
+    {
+        IsOverlayTurnVisible = false;
+        ClearOverlayError();
+        Transcript = string.Empty;
+        Answer = string.Empty;
+    }
+
+    private void ShowOverlayTurn()
+    {
+        ClearOverlayError();
+        IsOverlayTurnVisible = true;
+    }
+
+    private void SetOverlayError(string message)
+    {
+        _overlayErrorText = message;
+        IsOverlayTurnVisible = true;
+        RaiseOverlayProperties();
+    }
+
+    private void ClearOverlayError()
+    {
+        if (_overlayErrorText.Length == 0)
+        {
+            return;
+        }
+
+        _overlayErrorText = string.Empty;
+        RaiseOverlayProperties();
+    }
+
+    private void RaiseOverlayProperties()
+    {
+        RaisePropertyChanged(nameof(OverlayQuestion));
+        RaisePropertyChanged(nameof(OverlayAnswer));
+        RaisePropertyChanged(nameof(HasOverlayQuestion));
+        RaisePropertyChanged(nameof(HasOverlayAnswer));
+        RaisePropertyChanged(nameof(IsOverlayConversationVisible));
+    }
+
+    private void ResetAudioLevel()
+    {
+        _audioLevelSmoother.Reset();
+        _lastAudioLevelUpdateTimestamp = 0;
+        AudioLevel = 0;
+    }
 
     private void Track(
         string eventName,
