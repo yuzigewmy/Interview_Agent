@@ -49,6 +49,7 @@ public sealed class AppRuntime : IAsyncDisposable
             Path.Combine(asrResourceDirectory, "correct_words.json"),
             Path.Combine(asrResourceDirectory, "volcano_hotwords.txt"));
         InterviewSession = new InMemoryInterviewSession();
+        InterviewTranscriptExporter = new DocxInterviewTranscriptExporter();
         AudioCapture = new WasapiAudioCaptureService();
         Telemetry = new JsonlAppTelemetry(Path.Combine(RootDirectory, "logs"));
         _httpClient = new HttpClient(
@@ -74,6 +75,8 @@ public sealed class AppRuntime : IAsyncDisposable
     public IDomainQuestionCorrector QuestionCorrector { get; }
 
     public IInterviewSession InterviewSession { get; }
+
+    public IInterviewTranscriptExporter InterviewTranscriptExporter { get; }
 
     public IAudioCaptureService AudioCapture { get; }
 
