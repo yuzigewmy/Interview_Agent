@@ -8,6 +8,7 @@ using InterviewAgent.Infrastructure.Corrections;
 using InterviewAgent.Infrastructure.DeepSeek;
 using InterviewAgent.Infrastructure.Documents;
 using InterviewAgent.Infrastructure.Embeddings;
+using InterviewAgent.Infrastructure.Generation;
 using InterviewAgent.Infrastructure.Knowledge;
 using InterviewAgent.Infrastructure.Observability;
 using InterviewAgent.Infrastructure.Security;
@@ -48,7 +49,11 @@ public sealed class AppRuntime : IAsyncDisposable
             Path.Combine(asrResourceDirectory, "volcano_hotwords.txt"));
         AudioCapture = new WasapiAudioCaptureService();
         Telemetry = new JsonlAppTelemetry(Path.Combine(RootDirectory, "logs"));
-        _httpClient = new HttpClient
+        _httpClient = new HttpClient(
+            new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+            })
         {
             Timeout = TimeSpan.FromSeconds(35),
         };
@@ -73,17 +78,22 @@ public sealed class AppRuntime : IAsyncDisposable
     public IAnswerGenerator CreateAnswerGenerator(Func<AppSettings> settingsAccessor)
     {
         var settings = settingsAccessor();
-        if (settings.DemoMode || !settings.HasDeepSeekCredential)
+        if (settings.DemoMode)
         {
             return new DemoAnswerGenerator();
         }
 
-        return new DeepSeekAnswerGenerator(
+        return new OpenAiCompatibleAnswerGenerator(
             _httpClient,
             () =>
             {
                 var current = settingsAccessor();
-                return new DeepSeekOptions(current.DeepSeekApiKey);
+                return new OpenAiCompatibleOptions(
+                    current.ModelProvider,
+                    current.ModelName,
+                    current.ModelBaseUrl,
+                    current.ModelApiKey,
+                    current.ModelMaxTokens);
             });
     }
 

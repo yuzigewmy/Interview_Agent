@@ -141,8 +141,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     public string ModelLabel =>
         Settings.DemoMode
             ? "模型：本地演示"
-            : Settings.HasDeepSeekCredential
-                ? "模型：DeepSeek"
+            : Settings.HasModelConfiguration
+                ? $"模型：{Settings.ModelProvider} / {Settings.ModelName}"
                 : "模型：未配置";
 
     public async Task InitializeAsync()
@@ -289,7 +289,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                                 "first_answer_delta",
                                 operationId,
                                 ("durationMs", (long)update.Elapsed.TotalMilliseconds),
-                                ("provider", Settings.DemoMode ? "demo" : "deepseek"));
+                                ("provider", Settings.DemoMode
+                                    ? "demo"
+                                    : "configured-model"));
                         }
 
                         break;
@@ -299,7 +301,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                         Track(
                             "external_call_failed",
                             operationId,
-                            ("provider", "deepseek"),
+                            ("provider", "configured-model"),
                             ("errorCode", "generation_failed"));
                         break;
 
