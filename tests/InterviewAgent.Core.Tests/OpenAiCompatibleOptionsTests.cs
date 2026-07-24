@@ -50,6 +50,19 @@ public sealed class OpenAiCompatibleOptionsTests
         Assert.Throws<ArgumentException>(options.Validate);
     }
 
+    [Fact]
+    public void UsesDeepSeekLowLatencyProfile_DoesNotMatchUnrelatedProviderName()
+    {
+        var options = new OpenAiCompatibleOptions(
+            Provider: "NotDeepSeekCompatible",
+            Model: "custom-model",
+            BaseUrl: "https://models.example.com/v1",
+            ApiKey: "configured-at-runtime",
+            MaxTokens: 700);
+
+        Assert.False(options.UsesDeepSeekLowLatencyProfile());
+    }
+
     private static OpenAiCompatibleOptions CreateOptions(
         string baseUrl,
         string apiKey = "configured-at-runtime") =>

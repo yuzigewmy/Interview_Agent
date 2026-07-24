@@ -19,4 +19,16 @@ public sealed record OpenAiCompatibleOptions(
 
     public Uri ResolveEndpoint() =>
         ModelEndpointPolicy.ResolveChatCompletionsEndpoint(BaseUrl);
+
+    public bool UsesDeepSeekLowLatencyProfile()
+    {
+        var endpoint = ResolveEndpoint();
+        return Provider.Trim().StartsWith(
+                   "DeepSeek",
+                   StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(
+                   endpoint.Host,
+                   "api.deepseek.com",
+                   StringComparison.OrdinalIgnoreCase);
+    }
 }

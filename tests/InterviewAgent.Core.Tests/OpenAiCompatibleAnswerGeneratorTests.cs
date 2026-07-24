@@ -56,6 +56,47 @@ public sealed class OpenAiCompatibleAnswerGeneratorTests
         Assert.True(body.RootElement.GetProperty("stream").GetBoolean());
         Assert.False(body.RootElement.TryGetProperty("thinking", out _));
         Assert.False(body.RootElement.TryGetProperty("stream_options", out _));
+        Assert.False(body.RootElement.TryGetProperty("temperature", out _));
+    }
+
+    [Fact]
+    public async Task StreamAsync_RestoresLowLatencyDeepSeekRequestProfile()
+    {
+        var handler = new CapturingHandler("data: [DONE]\n\n");
+        using var client = new HttpClient(handler);
+        var generator = new OpenAiCompatibleAnswerGenerator(
+            client,
+            () => new OpenAiCompatibleOptions(
+                Provider: "DeepSeek",
+                Model: "deepseek-v4-flash",
+                BaseUrl: "https://api.deepseek.com",
+                ApiKey: "runtime-secret",
+                MaxTokens: 600));
+
+        await foreach (var _ in generator.StreamAsync(
+                           new AnswerRequest(
+                               "什么是 SQL 注入？",
+                               Array.Empty<KnowledgeHit>()),
+                           CancellationToken.None))
+        {
+        }
+
+        using var body = JsonDocument.Parse(handler.Body!);
+        Assert.Equal(
+            "disabled",
+            body.RootElement
+                .GetProperty("thinking")
+                .GetProperty("type")
+                .GetString());
+        Assert.Equal(
+            0.2,
+            body.RootElement.GetProperty("temperature").GetDouble(),
+            precision: 3);
+        Assert.True(
+            body.RootElement
+                .GetProperty("stream_options")
+                .GetProperty("include_usage")
+                .GetBoolean());
     }
 
     [Fact]

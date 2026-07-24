@@ -30,17 +30,25 @@ public sealed class OpenAiCompatibleAnswerGenerator : IAnswerGenerator
         var options = _optionsAccessor();
         options.Validate();
         var prompt = InterviewPromptBuilder.Build(request);
-        var body = JsonSerializer.Serialize(new
+        var payload = new Dictionary<string, object?>
         {
-            model = options.Model.Trim(),
-            messages = new[]
+            ["model"] = options.Model.Trim(),
+            ["messages"] = new[]
             {
                 new { role = "system", content = prompt.System },
                 new { role = "user", content = prompt.User },
             },
-            stream = true,
-            max_tokens = options.MaxTokens,
-        });
+            ["stream"] = true,
+            ["max_tokens"] = options.MaxTokens,
+        };
+        if (options.UsesDeepSeekLowLatencyProfile())
+        {
+            payload["thinking"] = new { type = "disabled" };
+            payload["stream_options"] = new { include_usage = true };
+            payload["temperature"] = 0.2;
+        }
+
+        var body = JsonSerializer.Serialize(payload);
 
         using var message = new HttpRequestMessage(
             HttpMethod.Post,

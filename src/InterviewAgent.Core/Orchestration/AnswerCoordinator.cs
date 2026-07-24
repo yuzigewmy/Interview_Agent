@@ -12,6 +12,8 @@ namespace InterviewAgent.Core.Orchestration;
 
 public sealed class AnswerCoordinator
 {
+    private static readonly TimeSpan DefaultFallbackDelay =
+        TimeSpan.FromSeconds(4);
     private readonly IKnowledgeRepository _knowledgeRepository;
     private readonly Func<IAnswerGenerator> _generatorFactory;
     private readonly TimeSpan _fallbackDelay;
@@ -32,7 +34,7 @@ public sealed class AnswerCoordinator
             throw new ArgumentNullException(nameof(knowledgeRepository));
         _generatorFactory = generatorFactory ??
             throw new ArgumentNullException(nameof(generatorFactory));
-        _fallbackDelay = fallbackDelay ?? TimeSpan.FromMilliseconds(4_500);
+        _fallbackDelay = fallbackDelay ?? DefaultFallbackDelay;
         _totalTimeout = totalTimeout ?? TimeSpan.FromSeconds(30);
         _questionCorrector = questionCorrector;
         _interviewSession = interviewSession;
@@ -62,11 +64,13 @@ public sealed class AnswerCoordinator
                 SingleWriter = false,
                 AllowSynchronousContinuations = false,
             });
-        var worker = RunAsync(
-            question,
-            questionId,
-            channel.Writer,
-            requestCancellation.Token);
+        var worker = Task.Run(
+            () => RunAsync(
+                question,
+                questionId,
+                channel.Writer,
+                requestCancellation.Token),
+            CancellationToken.None);
 
         try
         {
@@ -102,7 +106,7 @@ public sealed class AnswerCoordinator
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            var context =
+            var recentContext =
                 _interviewSession?.GetRecentContext() ??
                 Array.Empty<InterviewTurn>();
             var correction = _questionCorrector?.Correct(question) ??
@@ -111,6 +115,9 @@ public sealed class AnswerCoordinator
                     question,
                     CorrectionConfidence.High,
                     CorrectionSource.Original);
+            var context = SelectRelevantContext(
+                correction.CandidateQuestion,
+                recentContext);
             var evidence = await _knowledgeRepository.SearchAsync(
                 BuildRetrievalQuestion(
                     correction.CandidateQuestion,
@@ -131,8 +138,8 @@ public sealed class AnswerCoordinator
             string? fallbackAnswer = null;
             using var fallbackCancellation =
                 CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            var cloudTask = GenerateCloudAsync();
             var fallbackTask = EmitFallbackAsync();
+            var cloudTask = GenerateCloudAsync();
             await Task.WhenAll(cloudTask, fallbackTask);
 
             var finalAnswer = cloudAnswer.Length > 0
@@ -281,6 +288,18 @@ public sealed class AnswerCoordinator
         return
             $"{context[^1].CorrectedQuestion}\n" +
             $"追问：{currentQuestion}";
+    }
+
+    private static IReadOnlyList<InterviewTurn> SelectRelevantContext(
+        string currentQuestion,
+        IReadOnlyList<InterviewTurn> context)
+    {
+        if (context.Count == 0 || !IsLikelyFollowUp(currentQuestion))
+        {
+            return Array.Empty<InterviewTurn>();
+        }
+
+        return context.TakeLast(2).ToArray();
     }
 
     private static bool IsLikelyFollowUp(string question)

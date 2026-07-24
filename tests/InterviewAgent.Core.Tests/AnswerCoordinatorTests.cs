@@ -135,6 +135,72 @@ public sealed class AnswerCoordinatorTests
     }
 
     [Fact]
+    public async Task StreamAsync_OmitsContextForIndependentQuestion()
+    {
+        var repository = new RecordingRepository();
+        var generator = new CapturingGenerator();
+        var session = new InMemoryInterviewSession();
+        session.Add(
+            new InterviewTurn(
+                DateTimeOffset.Parse("2026-07-24T10:00:00+08:00"),
+                "SQL注入怎么防御？",
+                "SQL注入怎么防御？",
+                "我会使用参数化查询并限制数据库权限。"));
+        var coordinator = new AnswerCoordinator(
+            repository,
+            () => generator,
+            fallbackDelay: TimeSpan.FromMilliseconds(150),
+            totalTimeout: TimeSpan.FromSeconds(2),
+            interviewSession: session);
+
+        await foreach (var _ in coordinator.StreamAsync(
+                           "请介绍一下 Kerberos。",
+                           CancellationToken.None))
+        {
+        }
+
+        Assert.Equal(
+            new[] { "请介绍一下 Kerberos。" },
+            repository.Queries);
+        Assert.Empty(generator.Request!.Context!);
+    }
+
+    [Fact]
+    public async Task StreamAsync_StartsFallbackBeforeSynchronousModelWork()
+    {
+        using var gate = new ManualResetEventSlim();
+        var coordinator = new AnswerCoordinator(
+            new FakeRepository(),
+            () => new SynchronouslyBlockedGenerator(gate),
+            fallbackDelay: TimeSpan.FromMilliseconds(35),
+            totalTimeout: TimeSpan.FromSeconds(2));
+        var release = Task.Run(
+            async () =>
+            {
+                await Task.Delay(300);
+                gate.Set();
+            });
+        AnswerUpdate? fallback = null;
+
+        await foreach (var update in coordinator.StreamAsync(
+                           "什么是命令执行？",
+                           CancellationToken.None))
+        {
+            if (update.Kind == AnswerUpdateKind.LocalFallback)
+            {
+                fallback = update;
+                break;
+            }
+        }
+
+        await release;
+        Assert.NotNull(fallback);
+        Assert.True(
+            fallback.Elapsed < TimeSpan.FromMilliseconds(150),
+            $"本地兜底启动过晚：{fallback.Elapsed.TotalMilliseconds:0} ms");
+    }
+
+    [Fact]
     public async Task StreamAsync_LimitsUntrustedModelOutput()
     {
         var session = new InMemoryInterviewSession();
@@ -221,6 +287,19 @@ public sealed class AnswerCoordinatorTests
                 new string(
                     '答',
                     InMemoryInterviewSession.MaximumAnswerCharacters + 1_000));
+        }
+    }
+
+    private sealed class SynchronouslyBlockedGenerator(
+        ManualResetEventSlim gate) : IAnswerGenerator
+    {
+        public async IAsyncEnumerable<AnswerDelta> StreamAsync(
+            AnswerRequest request,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            gate.Wait(cancellationToken);
+            await Task.Yield();
+            yield break;
         }
     }
 
