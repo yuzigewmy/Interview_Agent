@@ -37,7 +37,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         _coordinator = new AnswerCoordinator(
             runtime.KnowledgeRepository,
             () => runtime.CreateAnswerGenerator(() => Settings),
-            questionCorrector: runtime.QuestionCorrector);
+            questionCorrector: runtime.QuestionCorrector,
+            interviewSession: runtime.InterviewSession);
     }
 
     public ObservableCollection<AudioDevice> AudioDevices { get; } = new();

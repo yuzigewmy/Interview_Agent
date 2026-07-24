@@ -1,6 +1,7 @@
 using InterviewAgent.Core.Answers;
 using InterviewAgent.Core.Corrections;
 using InterviewAgent.Core.Knowledge;
+using InterviewAgent.Core.Sessions;
 using InterviewAgent.Infrastructure.Prompts;
 
 namespace InterviewAgent.Core.Tests;
@@ -139,5 +140,39 @@ public sealed class InterviewPromptBuilderTests
         var prompt = InterviewPromptBuilder.Build(request, maxEvidenceCharacters: 6_000);
 
         Assert.InRange(prompt.User.Length, 1, 7_000);
+    }
+
+    [Fact]
+    public void Build_IncludesBoundedShortTermContextForFollowUpUnderstanding()
+    {
+        var request = new AnswerRequest(
+            "那它怎么防御？",
+            new[]
+            {
+                new KnowledgeHit(
+                    "id-1",
+                    "Web 安全 · SQL 注入防御",
+                    "使用参数化查询。",
+                    "面经.docx",
+                    0.06),
+            },
+            Context:
+            [
+                new InterviewTurn(
+                    DateTimeOffset.Parse("2026-07-24T10:00:00+08:00"),
+                    "circle注入是什么？",
+                    "SQL注入是什么？",
+                    "SQL注入是把恶意片段带入数据库查询。"),
+            ]);
+
+        var prompt = InterviewPromptBuilder.Build(request);
+
+        Assert.Contains("短期会话上下文", prompt.User, StringComparison.Ordinal);
+        Assert.Contains("上一轮问题：SQL注入是什么？", prompt.User, StringComparison.Ordinal);
+        Assert.Contains(
+            "上一轮回答：SQL注入是把恶意片段带入数据库查询。",
+            prompt.User,
+            StringComparison.Ordinal);
+        Assert.Contains("仅用于理解追问", prompt.System, StringComparison.Ordinal);
     }
 }

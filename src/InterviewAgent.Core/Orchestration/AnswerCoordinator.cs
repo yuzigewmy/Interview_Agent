@@ -1,10 +1,12 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Threading.Channels;
 using InterviewAgent.Core.Abstractions;
 using InterviewAgent.Core.Answers;
 using InterviewAgent.Core.Corrections;
 using InterviewAgent.Core.Knowledge;
+using InterviewAgent.Core.Sessions;
 
 namespace InterviewAgent.Core.Orchestration;
 
@@ -15,6 +17,7 @@ public sealed class AnswerCoordinator
     private readonly TimeSpan _fallbackDelay;
     private readonly TimeSpan _totalTimeout;
     private readonly IDomainQuestionCorrector? _questionCorrector;
+    private readonly IInterviewSession? _interviewSession;
     private CancellationTokenSource? _activeRequest;
 
     public AnswerCoordinator(
@@ -22,7 +25,8 @@ public sealed class AnswerCoordinator
         Func<IAnswerGenerator> generatorFactory,
         TimeSpan? fallbackDelay = null,
         TimeSpan? totalTimeout = null,
-        IDomainQuestionCorrector? questionCorrector = null)
+        IDomainQuestionCorrector? questionCorrector = null,
+        IInterviewSession? interviewSession = null)
     {
         _knowledgeRepository = knowledgeRepository ??
             throw new ArgumentNullException(nameof(knowledgeRepository));
@@ -31,6 +35,7 @@ public sealed class AnswerCoordinator
         _fallbackDelay = fallbackDelay ?? TimeSpan.FromMilliseconds(4_500);
         _totalTimeout = totalTimeout ?? TimeSpan.FromSeconds(30);
         _questionCorrector = questionCorrector;
+        _interviewSession = interviewSession;
         if (_fallbackDelay <= TimeSpan.Zero || _totalTimeout <= _fallbackDelay)
         {
             throw new ArgumentOutOfRangeException(
@@ -97,6 +102,9 @@ public sealed class AnswerCoordinator
         var stopwatch = Stopwatch.StartNew();
         try
         {
+            var context =
+                _interviewSession?.GetRecentContext() ??
+                Array.Empty<InterviewTurn>();
             var correction = _questionCorrector?.Correct(question) ??
                 new DomainCorrectionResult(
                     question,
@@ -104,7 +112,9 @@ public sealed class AnswerCoordinator
                     CorrectionConfidence.High,
                     CorrectionSource.Original);
             var evidence = await _knowledgeRepository.SearchAsync(
-                correction.CandidateQuestion,
+                BuildRetrievalQuestion(
+                    correction.CandidateQuestion,
+                    context),
                 4,
                 cancellationToken);
             await writer.WriteAsync(
@@ -117,11 +127,26 @@ public sealed class AnswerCoordinator
                 cancellationToken);
 
             var firstCloudDelta = 0;
+            var cloudAnswer = new StringBuilder();
+            string? fallbackAnswer = null;
             using var fallbackCancellation =
                 CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             var cloudTask = GenerateCloudAsync();
             var fallbackTask = EmitFallbackAsync();
             await Task.WhenAll(cloudTask, fallbackTask);
+
+            var finalAnswer = cloudAnswer.Length > 0
+                ? cloudAnswer.ToString()
+                : fallbackAnswer;
+            if (!string.IsNullOrWhiteSpace(finalAnswer))
+            {
+                _interviewSession?.Add(
+                    new InterviewTurn(
+                        DateTimeOffset.Now,
+                        correction.OriginalTranscript,
+                        correction.CandidateQuestion,
+                        finalAnswer));
+            }
 
             await writer.WriteAsync(
                 new AnswerUpdate(
@@ -138,7 +163,11 @@ public sealed class AnswerCoordinator
                 {
                     var generator = _generatorFactory();
                     await foreach (var delta in generator.StreamAsync(
-                                       new AnswerRequest(question, evidence, correction),
+                                       new AnswerRequest(
+                                           question,
+                                           evidence,
+                                           correction,
+                                           context),
                                        cancellationToken))
                     {
                         if (string.IsNullOrEmpty(delta.Text))
@@ -151,6 +180,7 @@ public sealed class AnswerCoordinator
                             fallbackCancellation.Cancel();
                         }
 
+                        cloudAnswer.Append(delta.Text);
                         await writer.WriteAsync(
                             new AnswerUpdate(
                                 questionId,
@@ -200,11 +230,14 @@ public sealed class AnswerCoordinator
                     return;
                 }
 
+                fallbackAnswer = BuildFallback(
+                    correction.CandidateQuestion,
+                    evidence);
                 await writer.WriteAsync(
                     new AnswerUpdate(
                         questionId,
                         AnswerUpdateKind.LocalFallback,
-                        BuildFallback(correction.CandidateQuestion, evidence),
+                        fallbackAnswer,
                         evidence,
                         stopwatch.Elapsed),
                     cancellationToken);
@@ -217,6 +250,50 @@ public sealed class AnswerCoordinator
         {
             writer.TryComplete();
         }
+    }
+
+    private static string BuildRetrievalQuestion(
+        string currentQuestion,
+        IReadOnlyList<InterviewTurn> context)
+    {
+        if (context.Count == 0 ||
+            !IsLikelyFollowUp(currentQuestion))
+        {
+            return currentQuestion;
+        }
+
+        return
+            $"{context[^1].CorrectedQuestion}\n" +
+            $"追问：{currentQuestion}";
+    }
+
+    private static bool IsLikelyFollowUp(string question)
+    {
+        if (question.Length > 60)
+        {
+            return false;
+        }
+
+        string[] markers =
+        [
+            "它",
+            "这个",
+            "那个",
+            "这种",
+            "该",
+            "上述",
+            "刚才",
+            "上一个",
+            "前面",
+            "继续",
+            "接着",
+            "然后",
+            "还有呢",
+            "那它",
+            "那这个",
+        ];
+        return markers.Any(
+            marker => question.Contains(marker, StringComparison.Ordinal));
     }
 
     private static string BuildFallback(

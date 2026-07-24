@@ -5,6 +5,7 @@ using InterviewAgent.Core.Answers;
 using InterviewAgent.Core.Corrections;
 using InterviewAgent.Core.Knowledge;
 using InterviewAgent.Core.Orchestration;
+using InterviewAgent.Core.Sessions;
 
 namespace InterviewAgent.Core.Tests;
 
@@ -93,6 +94,44 @@ public sealed class AnswerCoordinatorTests
         Assert.NotNull(generator.Request);
         Assert.Equal("circle注入是什么？", generator.Request.Question);
         Assert.Equal("SQL注入是什么？", generator.Request.Correction?.CandidateQuestion);
+    }
+
+    [Fact]
+    public async Task StreamAsync_UsesRecentTurnForFollowUpAndRecordsFinalAnswer()
+    {
+        var repository = new RecordingRepository();
+        var generator = new CapturingGenerator();
+        var session = new InMemoryInterviewSession();
+        session.Add(
+            new InterviewTurn(
+                DateTimeOffset.Parse("2026-07-24T10:00:00+08:00"),
+                "SQL注入怎么防御？",
+                "SQL注入怎么防御？",
+                "我会使用参数化查询并限制数据库权限。"));
+        var coordinator = new AnswerCoordinator(
+            repository,
+            () => generator,
+            fallbackDelay: TimeSpan.FromMilliseconds(150),
+            totalTimeout: TimeSpan.FromSeconds(2),
+            interviewSession: session);
+
+        await foreach (var _ in coordinator.StreamAsync(
+                           "那它怎么绕过？",
+                           CancellationToken.None))
+        {
+        }
+
+        Assert.Equal(
+            new[] { "SQL注入怎么防御？\n追问：那它怎么绕过？" },
+            repository.Queries);
+        Assert.Single(generator.Request!.Context!);
+        Assert.Equal(
+            "SQL注入怎么防御？",
+            generator.Request.Context![0].CorrectedQuestion);
+        var turns = session.Snapshot();
+        Assert.Equal(2, turns.Count);
+        Assert.Equal("那它怎么绕过？", turns[1].OriginalQuestion);
+        Assert.Equal("我先回答 SQL 注入的核心原理。", turns[1].Answer);
     }
 
     private sealed class FakeRepository : IKnowledgeRepository
