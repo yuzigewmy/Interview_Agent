@@ -9,6 +9,7 @@ using InterviewAgent.Core.Knowledge;
 using InterviewAgent.Core.Orchestration;
 using InterviewAgent.Core.Settings;
 using InterviewAgent.Core.Telemetry;
+using InterviewAgent.Infrastructure.Documents;
 
 namespace InterviewAgent.App.ViewModels;
 
@@ -104,6 +105,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             {
                 RaisePropertyChanged(nameof(CaptureButtonText));
                 RaisePropertyChanged(nameof(CaptureHint));
+                RaisePropertyChanged(nameof(CanRefreshAudioDevices));
             }
         }
     }
@@ -116,11 +118,19 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             if (SetProperty(ref _isBusy, value))
             {
                 RaisePropertyChanged(nameof(IsNotBusy));
+                RaisePropertyChanged(nameof(CanRefreshAudioDevices));
+                RaisePropertyChanged(nameof(CanExportInterview));
             }
         }
     }
 
     public bool IsNotBusy => !IsBusy;
+
+    public bool CanRefreshAudioDevices => !IsBusy && !IsCapturing;
+
+    public int InterviewRecordCount => _runtime.InterviewSession.Count;
+
+    public bool CanExportInterview => InterviewRecordCount > 0 && !IsBusy;
 
     public string CaptureButtonText =>
         IsCapturing ? "停止采集并回答" : "开始采集问题";
@@ -159,25 +169,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             StatusText = "加密设置无法读取，已切换到安全演示模式。";
         }
 
-        try
-        {
-            var devices = await _runtime.AudioCapture.GetDevicesAsync(
-                _lifetimeCancellation.Token);
-            AudioDevices.Clear();
-            foreach (var device in devices)
-            {
-                AudioDevices.Add(device);
-            }
-
-            SelectedAudioDevice = AudioDevices.FirstOrDefault(
-                                      device =>
-                                          device.Kind == AudioDeviceKind.SystemOutput)
-                                  ?? AudioDevices.FirstOrDefault();
-        }
-        catch
-        {
-            StatusText = "无法枚举音频设备，仍可使用文本提问。";
-        }
+        await LoadAudioDevicesAsync(updateStatus: false);
 
         if (!_runtime.KnowledgeDatabaseExistedAtStartup)
         {
@@ -308,6 +300,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
                     case AnswerUpdateKind.Completed:
                         StatusText = "回答已完成，可直接口述或继续编辑问题。";
+                        RaisePropertyChanged(nameof(InterviewRecordCount));
+                        RaisePropertyChanged(nameof(CanExportInterview));
                         Track(
                             "question_completed",
                             operationId,
@@ -324,6 +318,60 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         finally
         {
             TimingText = $"{stopwatch.Elapsed.TotalSeconds:0.0}s 完成";
+            IsBusy = false;
+        }
+    }
+
+    public async Task RefreshAudioDevicesAsync()
+    {
+        if (!CanRefreshAudioDevices)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            await LoadAudioDevicesAsync(updateStatus: true);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public string CreateSuggestedExportFileName(DateTimeOffset timestamp)
+    {
+        var firstQuestion = _runtime.InterviewSession
+                                .Snapshot()
+                                .FirstOrDefault()
+                                ?.CorrectedQuestion
+                            ?? "面试记录";
+        return InterviewExportFileName.Create(firstQuestion, timestamp);
+    }
+
+    public async Task ExportInterviewAsync(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var records = _runtime.InterviewSession.Snapshot();
+        if (records.Count == 0)
+        {
+            throw new InvalidOperationException("当前面试还没有可导出的问答记录。");
+        }
+
+        IsBusy = true;
+        StatusText = "正在生成面试问答 DOCX…";
+        try
+        {
+            await _runtime.InterviewTranscriptExporter.ExportAsync(
+                path,
+                records,
+                _lifetimeCancellation.Token);
+            StatusText =
+                $"已导出 {records.Count} 道面试问答：{Path.GetFileName(path)}";
+        }
+        finally
+        {
             IsBusy = false;
         }
     }
@@ -400,8 +448,42 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
         finally
         {
+            _runtime.InterviewSession.Clear();
             _lifetimeCancellation.Dispose();
             await _runtime.DisposeAsync();
+        }
+    }
+
+    private async Task LoadAudioDevicesAsync(bool updateStatus)
+    {
+        var previousDeviceId = SelectedAudioDevice?.Id;
+        try
+        {
+            var devices = await _runtime.AudioCapture.GetDevicesAsync(
+                _lifetimeCancellation.Token);
+            AudioDevices.Clear();
+            foreach (var device in devices)
+            {
+                AudioDevices.Add(device);
+            }
+
+            SelectedAudioDevice = AudioDeviceSelection.Select(
+                devices,
+                previousDeviceId);
+            if (updateStatus)
+            {
+                StatusText = devices.Count == 0
+                    ? "未发现可用音频来源，仍可使用文本提问。"
+                    : $"音频来源已刷新，共发现 {devices.Count} 个设备。";
+            }
+        }
+        catch (OperationCanceledException)
+            when (_lifetimeCancellation.IsCancellationRequested)
+        {
+        }
+        catch
+        {
+            StatusText = "无法枚举音频设备，仍可使用文本提问。";
         }
     }
 

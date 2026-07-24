@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using InterviewAgent.Core.Settings;
 
@@ -12,10 +13,15 @@ public partial class SettingsWindow : Window
         _current = current ?? throw new ArgumentNullException(nameof(current));
         InitializeComponent();
         DemoModeCheckBox.IsChecked = current.DemoMode;
+        ProviderTextBox.Text = current.ModelProvider;
+        ModelNameTextBox.Text = current.ModelName;
+        ModelBaseUrlTextBox.Text = current.ModelBaseUrl;
+        ModelMaxTokensTextBox.Text = current.ModelMaxTokens.ToString(
+            CultureInfo.InvariantCulture);
         ResourceIdTextBox.Text = current.VolcanoResourceId;
-        DeepSeekSavedLabel.Text = current.HasDeepSeekCredential
-            ? "已保存凭据"
-            : "尚未配置";
+        ModelSavedLabel.Text = string.IsNullOrWhiteSpace(current.ModelApiKey)
+            ? "API Key 未配置（本地模型可留空）"
+            : "已保存 API Key";
         VolcanoSavedLabel.Text = current.HasVolcanoCredential
             ? "已保存凭据"
             : "尚未配置";
@@ -28,12 +34,26 @@ public partial class SettingsWindow : Window
         try
         {
             var clear = ClearCredentialsCheckBox.IsChecked == true;
+            if (!int.TryParse(
+                    ModelMaxTokensTextBox.Text.Trim(),
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out var modelMaxTokens))
+            {
+                throw new ArgumentException(
+                    "最大输出 Token 必须是 64 到 8192 之间的整数。");
+            }
+
             var settings = new AppSettings(
                 DemoMode: DemoModeCheckBox.IsChecked == true,
-                DeepSeekApiKey: ResolveSecret(
-                    DeepSeekPasswordBox.Password,
-                    _current.DeepSeekApiKey,
+                ModelProvider: ProviderTextBox.Text.Trim(),
+                ModelName: ModelNameTextBox.Text.Trim(),
+                ModelBaseUrl: ModelBaseUrlTextBox.Text.Trim(),
+                ModelApiKey: ResolveSecret(
+                    ModelApiKeyPasswordBox.Password,
+                    _current.ModelApiKey,
                     clear),
+                ModelMaxTokens: modelMaxTokens,
                 VolcanoApiKey: ResolveSecret(
                     VolcanoApiKeyPasswordBox.Password,
                     _current.VolcanoApiKey,
@@ -48,11 +68,6 @@ public partial class SettingsWindow : Window
                     clear),
                 VolcanoResourceId: ResourceIdTextBox.Text.Trim());
             settings.Validate();
-            if (!settings.DemoMode && !settings.HasDeepSeekCredential)
-            {
-                throw new InvalidOperationException(
-                    "关闭演示模式前，请先配置 DeepSeek API Key。");
-            }
 
             ResultSettings = settings;
             DialogResult = true;
@@ -74,4 +89,3 @@ public partial class SettingsWindow : Window
                 ? existing
                 : entered.Trim();
 }
-

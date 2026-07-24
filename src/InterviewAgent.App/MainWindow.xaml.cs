@@ -1,3 +1,4 @@
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -65,6 +66,58 @@ public partial class MainWindow : Window
         catch
         {
             _viewModel.ReportUiError("生成回答失败，请检查问题或设置。");
+        }
+    }
+
+    private async void OnRefreshAudioDevicesClick(
+        object sender,
+        RoutedEventArgs e)
+    {
+        try
+        {
+            await _viewModel.RefreshAudioDevicesAsync();
+        }
+        catch
+        {
+            _viewModel.ReportUiError("刷新音频来源失败，请检查设备连接状态。");
+        }
+    }
+
+    private async void OnExportInterviewClick(
+        object sender,
+        RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "导出面试问答记录",
+            Filter = "Word 文档 (*.docx)|*.docx",
+            DefaultExt = ".docx",
+            AddExtension = true,
+            OverwritePrompt = true,
+            FileName = _viewModel.CreateSuggestedExportFileName(
+                DateTimeOffset.Now),
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await _viewModel.ExportInterviewAsync(dialog.FileName);
+        }
+        catch (Exception exception)
+            when (exception is ArgumentException or
+                  InvalidOperationException or
+                  IOException or
+                  UnauthorizedAccessException)
+        {
+            _viewModel.ReportUiError(
+                "导出失败，请确认目标文件未被占用且目录可写。");
+        }
+        catch
+        {
+            _viewModel.ReportUiError("导出失败，请稍后重试。");
         }
     }
 

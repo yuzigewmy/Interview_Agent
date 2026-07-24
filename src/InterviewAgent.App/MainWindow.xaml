@@ -70,7 +70,12 @@
                             CornerRadius="14"
                             Padding="11,6"
                             Margin="0,0,14,0">
-                        <TextBlock Text="{Binding ModelLabel}" Foreground="#CDE4FF" FontSize="12" />
+                        <TextBlock Text="{Binding ModelLabel}"
+                                   Foreground="#CDE4FF"
+                                   FontSize="12"
+                                   MaxWidth="260"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding ModelLabel}" />
                     </Border>
                     <CheckBox x:Name="TopmostCheckBox"
                               Content="窗口置顶"
@@ -127,12 +132,32 @@
                                    FontSize="12"
                                    Foreground="{StaticResource MutedBrush}"
                                    Margin="0,0,0,7" />
-                        <ComboBox Grid.Row="2"
-                                  ItemsSource="{Binding AudioDevices}"
-                                  SelectedItem="{Binding SelectedAudioDevice}"
-                                  DisplayMemberPath="DisplayName"
-                                  MinHeight="38"
-                                  Margin="0,0,0,12" />
+                        <Grid Grid.Row="2" Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox ItemsSource="{Binding AudioDevices}"
+                                      SelectedItem="{Binding SelectedAudioDevice}"
+                                      DisplayMemberPath="DisplayName"
+                                      MinHeight="38"
+                                      Margin="0,0,8,0" />
+                            <Button Grid.Column="1"
+                                    Width="38"
+                                    Height="38"
+                                    Padding="0"
+                                    Style="{StaticResource SoftButton}"
+                                    IsEnabled="{Binding CanRefreshAudioDevices}"
+                                    ToolTip="刷新音频来源"
+                                    AutomationProperties.Name="刷新音频来源"
+                                    Click="OnRefreshAudioDevicesClick">
+                                <TextBlock Text="&#xE72C;"
+                                           FontFamily="Segoe MDL2 Assets"
+                                           FontSize="16"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Button>
+                        </Grid>
 
                         <StackPanel Grid.Row="3" Margin="0,0,0,14">
                             <Button Content="{Binding CaptureButtonText}"
@@ -228,16 +253,25 @@
                                        Margin="0,4,20,0"
                                        TextWrapping="Wrap" />
                         </StackPanel>
-                        <Border Grid.Column="1"
-                                Background="#EEF4FF"
-                                CornerRadius="12"
-                                Padding="10,6"
-                                VerticalAlignment="Top">
-                            <TextBlock Text="{Binding TimingText}"
-                                       Foreground="#175CD3"
-                                       FontSize="12"
-                                       FontWeight="SemiBold" />
-                        </Border>
+                        <StackPanel Grid.Column="1"
+                                    Orientation="Horizontal"
+                                    VerticalAlignment="Top">
+                            <Button Content="导出记录"
+                                    Style="{StaticResource SoftButton}"
+                                    Margin="0,0,8,0"
+                                    Padding="12,6"
+                                    IsEnabled="{Binding CanExportInterview}"
+                                    ToolTip="将本次面试的全部问题与回答导出为 DOCX"
+                                    Click="OnExportInterviewClick" />
+                            <Border Background="#EEF4FF"
+                                    CornerRadius="12"
+                                    Padding="10,6">
+                                <TextBlock Text="{Binding TimingText}"
+                                           Foreground="#175CD3"
+                                           FontSize="12"
+                                           FontWeight="SemiBold" />
+                            </Border>
+                        </StackPanel>
                     </Grid>
 
                     <Border Grid.Row="1"
@@ -322,7 +356,7 @@
                     <ColumnDefinition Width="2*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0"
-                           Text="隐私：音频默认仅在内存中处理，不落盘；诊断日志不记录问题正文、答案、音频或密钥。"
+                           Text="隐私：音频与短期问答上下文仅在内存中处理，程序退出即清除；诊断日志不记录问题正文、答案、音频或密钥。"
                            Foreground="#475467"
                            FontSize="11"
                            TextWrapping="Wrap"
