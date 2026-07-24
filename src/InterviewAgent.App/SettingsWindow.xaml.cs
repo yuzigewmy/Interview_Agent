@@ -13,6 +13,7 @@ public partial class SettingsWindow : Window
         _current = current ?? throw new ArgumentNullException(nameof(current));
         InitializeComponent();
         DemoModeCheckBox.IsChecked = current.DemoMode;
+        EnableFloatingOverlayCheckBox.IsChecked = current.EnableFloatingOverlay;
         ProviderTextBox.Text = current.ModelProvider;
         ModelNameTextBox.Text = current.ModelName;
         ModelBaseUrlTextBox.Text = current.ModelBaseUrl;
@@ -68,7 +69,14 @@ public partial class SettingsWindow : Window
                     VolcanoAccessKeyPasswordBox.Password,
                     _current.VolcanoAccessKey,
                     clear),
-                VolcanoResourceId: ResourceIdTextBox.Text.Trim());
+                VolcanoResourceId: ResourceIdTextBox.Text.Trim())
+            {
+                EnableFloatingOverlay =
+                    EnableFloatingOverlayCheckBox.IsChecked == true,
+                FloatingOverlayDiameter = _current.FloatingOverlayDiameter,
+                FloatingOverlayLeft = _current.FloatingOverlayLeft,
+                FloatingOverlayTop = _current.FloatingOverlayTop,
+            };
             settings.Validate();
 
             ResultSettings = settings;

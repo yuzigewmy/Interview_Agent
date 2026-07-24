@@ -44,6 +44,20 @@
 
                 <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
                     <StackPanel>
+                        <CheckBox x:Name="EnableFloatingOverlayCheckBox"
+                                  Content="启用桌面悬浮球"
+                                  FontWeight="SemiBold"
+                                  FontSize="15" />
+                        <TextBlock Text="悬浮球始终置顶且不会抢占面试窗口焦点。单击开始或停止问题采集，双击恢复主界面，F8 快捷键仍然可用。"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap"
+                                   FontSize="12"
+                                   Margin="24,7,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
+                    <StackPanel>
                         <TextBlock Text="回答模型（OpenAI 兼容）"
                                    FontSize="16"
                                    FontWeight="SemiBold" />

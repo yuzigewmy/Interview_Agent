@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     private const uint VirtualKeyF8 = 0x77;
     private readonly MainViewModel _viewModel;
     private HwndSource? _windowSource;
+    private FloatingOverlayController? _floatingOverlayController;
 
     public MainWindow(AppRuntime runtime)
     {
@@ -28,6 +29,12 @@ public partial class MainWindow : Window
         try
         {
             await _viewModel.InitializeAsync();
+            _floatingOverlayController = new FloatingOverlayController(
+                this,
+                _viewModel,
+                ToggleCaptureSafeAsync);
+            await _floatingOverlayController.SetEnabledAsync(
+                _viewModel.Settings.EnableFloatingOverlay);
         }
         catch
         {
@@ -51,6 +58,12 @@ public partial class MainWindow : Window
         var handle = new WindowInteropHelper(this).Handle;
         NativeMethods.UnregisterHotKey(handle, HotkeyId);
         _windowSource?.RemoveHook(WindowProcedure);
+        if (_floatingOverlayController is not null)
+        {
+            await _floatingOverlayController.DisposeAsync();
+            _floatingOverlayController = null;
+        }
+
         await _viewModel.DisposeAsync();
     }
 
@@ -147,6 +160,11 @@ public partial class MainWindow : Window
             try
             {
                 await _viewModel.SaveSettingsAsync(dialog.ResultSettings);
+                if (_floatingOverlayController is not null)
+                {
+                    await _floatingOverlayController.SetEnabledAsync(
+                        _viewModel.Settings.EnableFloatingOverlay);
+                }
             }
             catch (Exception exception)
                 when (exception is ArgumentException or InvalidOperationException)
